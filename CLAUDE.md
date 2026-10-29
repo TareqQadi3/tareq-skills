@@ -36,6 +36,7 @@ Full background: `docs/TAREQ-SKILLS-PROJECT-HANDOFF.md` (original handoff, do no
   `claude/*` branch and a Pull Request.
 - Do **not** commit, print, or expose secrets, tokens, credentials, or private data.
 - Do **not** deploy or make destructive changes.
+- Ask before any step that involves a payment or paid service.
 - Approval in one context does not extend to another.
 - Verify official documentation before building any adapter; never rely on memory for
   tool paths or fields.
@@ -54,6 +55,8 @@ Full background: `docs/TAREQ-SKILLS-PROJECT-HANDOFF.md` (original handoff, do no
 
 ## Working style
 
+- For any task, choose the suitable skills, or give the owner the options with a
+  comparison and a recommendation.
 - No duplicate work, no repeated checks whose results are still valid, no research
   unrelated to the request.
 - Keep milestones coherent; do not create work belonging to later milestones.

@@ -36,6 +36,18 @@ Anything not listed here is not yet designed.
 5. **Audit / doctor / rollback** — conflicts and context cost, health checks, return to a
    previous lock.
 
+## Client project files (owner requirement, §4-B; format in M3)
+
+- **Skills register:** GitHub links for every skill used in the project, split into
+  files by category (e.g. `SKILLS-<category>.md`).
+- **Project log:** important instructions, changes, and steps taken.
+
+## Context and token management (owner requirement, §4-C)
+
+Save important state to in-project files (handoff / project log) and read them only when
+needed; minimize token use. A skill cannot run `/compact` or switch the main session
+model, so continuity relies on these files. Hook support for re-reading state is **unverified** (M2).
+
 ## Invariants
 
 - Disabled skills are never deleted (status `disabled`).
@@ -47,5 +59,4 @@ Anything not listed here is not yet designed.
 
 Verified facts about Claude Code skill loading (locations, frontmatter fields, name
 precedence, symlinks) are recorded in §10-A of the original handoff and will be
-completed in M2. OpenCode behavior is **unverified** (§10-B). Skills cannot run
-`/compact` or switch the main session model; continuity relies on in-repo state files.
+completed in M2. OpenCode behavior is **unverified** (§10-B).
