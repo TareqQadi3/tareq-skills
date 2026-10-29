@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skills.schema.json",
+  "title": "Skill catalog (catalog/skills.yaml)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "categories", "skills"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "categories": {"$ref": "common.schema.json#/$defs/idList", "minItems": 1},
+    "skills": {"type": "array", "items": {"$ref": "#/$defs/skill"}}
+  },
+  "$defs": {
+    "skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "category", "path", "scope", "version", "source", "status", "review", "cost", "invocation"],
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/id"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 64},
+        "category": {"$ref": "common.schema.json#/$defs/id"},
+        "path": {"type": "string", "pattern": "^library/[a-z0-9-]+/[a-z0-9-]+$"},
+        "scope": {"enum": ["project", "stack", "general"]},
+        "project": {"$ref": "common.schema.json#/$defs/id"},
+        "version": {"type": "string", "minLength": 1},
+        "source": {"$ref": "#/$defs/source"},
+        "license_exception": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["approved_by", "date", "reason"],
+          "properties": {
+            "approved_by": {"type": "string", "minLength": 1},
+            "date": {"$ref": "common.schema.json#/$defs/date"},
+            "reason": {"type": "string", "minLength": 1}
+          }
+        },
+        "status": {"enum": ["candidate", "active", "disabled"]},
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state"],
+          "properties": {
+            "state": {"enum": ["pending", "approved", "rejected"]},
+            "reviewed_by": {"type": "string"},
+            "date": {"$ref": "common.schema.json#/$defs/date"},
+            "notes": {"type": "string"}
+          },
+          "if": {"properties": {"state": {"enum": ["approved", "rejected"]}}},
+          "then": {"required": ["reviewed_by", "date"]}
+        },
+        "conflicts_with": {"$ref": "common.schema.json#/$defs/idList"},
+        "replaces": {"$ref": "common.schema.json#/$defs/idList"},
+        "requires": {"$ref": "common.schema.json#/$defs/idList"},
+        "stacks": {"$ref": "common.schema.json#/$defs/idList"},
+        "cost": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["description_chars", "description_tokens_est"],
+          "properties": {
+            "description_chars": {"type": "integer", "minimum": 0},
+            "description_tokens_est": {"type": "integer", "minimum": 0}
+          }
+        },
+        "invocation": {"enum": ["auto", "manual"]},
+        "risk": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["level"],
+          "properties": {
+            "level": {"enum": ["low", "medium", "high"]},
+            "offensive": {"type": "boolean"},
+            "isolated_env_only": {"type": "boolean"}
+          }
+        },
+        "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "notes": {"type": "string"}
+      },
+      "if": {"properties": {"scope": {"const": "project"}}},
+      "then": {"required": ["project"]},
+      "else": {"not": {"required": ["project"]}}
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "license", "fetched_at", "content_hash"],
+      "properties": {
+        "type": {"enum": ["upstream", "local"]},
+        "url": {"$ref": "common.schema.json#/$defs/url"},
+        "commit": {"$ref": "common.schema.json#/$defs/commit"},
+        "license": {"type": ["string", "null"], "minLength": 1},
+        "fetched_at": {"$ref": "common.schema.json#/$defs/date"},
+        "content_hash": {"$ref": "common.schema.json#/$defs/sha256"}
+      },
+      "if": {"properties": {"type": {"const": "upstream"}}},
+      "then": {"required": ["url", "commit"]}
+    }
+  }
+}

@@ -1,0 +1,100 @@
+# SYNTHETIC test fixture. Not real skills; URLs and hashes are placeholders.
+schema_version: 1
+categories: [backend, frontend, testing, security, marketing]
+skills:
+  - id: demo-project-review
+    name: demo-project-review
+    category: testing
+    path: library/testing/demo-project-review
+    scope: project
+    project: demo-app
+    version: "1.0.0"
+    source: {type: local, license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+    status: active
+    review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
+    conflicts_with: [demo-ui-review-general]
+    cost: {description_chars: 300, description_tokens_est: 75}
+    invocation: auto
+  - id: demo-ui-review-general
+    name: demo-ui-review-general
+    category: frontend
+    path: library/frontend/demo-ui-review-general
+    scope: general
+    version: "2.1.0"
+    source: {type: upstream, url: "https://example.com/ui-review", commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", license: Apache-2.0, fetched_at: "2026-10-29", content_hash: "sha256:2222222222222222222222222222222222222222222222222222222222222222"}
+    status: active
+    review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
+    conflicts_with: [demo-project-review]
+    cost: {description_chars: 900, description_tokens_est: 225}
+    invocation: auto
+  - id: demo-spring-guide
+    name: demo-spring-guide
+    category: backend
+    path: library/backend/demo-spring-guide
+    scope: stack
+    version: "3.0.0"
+    source: {type: upstream, url: "https://example.com/spring-guide", commit: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:3333333333333333333333333333333333333333333333333333333333333333"}
+    status: active
+    review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
+    replaces: [demo-old-spring]
+    requires: [demo-testing-base]
+    stacks: [spring-boot]
+    cost: {description_chars: 600, description_tokens_est: 150}
+    invocation: auto
+  - id: demo-testing-base
+    name: demo-testing-base
+    category: testing
+    path: library/testing/demo-testing-base
+    scope: general
+    version: "1.2.0"
+    source: {type: upstream, url: "https://example.com/testing-base", commit: "cccccccccccccccccccccccccccccccccccccccc", license: ISC, fetched_at: "2026-10-29", content_hash: "sha256:4444444444444444444444444444444444444444444444444444444444444444"}
+    status: active
+    review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
+    cost: {description_chars: 400, description_tokens_est: 100}
+    invocation: auto
+  - id: demo-old-spring
+    name: demo-old-spring
+    category: backend
+    path: library/backend/demo-old-spring
+    scope: stack
+    version: "1.0.0"
+    source: {type: upstream, url: "https://example.com/old-spring", commit: "dddddddddddddddddddddddddddddddddddddddd", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:5555555555555555555555555555555555555555555555555555555555555555"}
+    status: disabled
+    review: {state: approved, reviewed_by: owner, date: "2026-10-29", notes: "Replaced by demo-spring-guide."}
+    stacks: [spring-boot]
+    cost: {description_chars: 500, description_tokens_est: 125}
+    invocation: auto
+  - id: demo-unlicensed
+    name: demo-unlicensed
+    category: frontend
+    path: library/frontend/demo-unlicensed
+    scope: general
+    version: "0.1.0"
+    source: {type: upstream, url: "https://example.com/unlicensed", commit: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", license: null, fetched_at: "2026-10-29", content_hash: "sha256:6666666666666666666666666666666666666666666666666666666666666666"}
+    status: candidate
+    review: {state: pending}
+    cost: {description_chars: 200, description_tokens_est: 50}
+    invocation: auto
+  - id: demo-marketing-copy
+    name: demo-marketing-copy
+    category: marketing
+    path: library/marketing/demo-marketing-copy
+    scope: general
+    version: "1.0.0"
+    source: {type: upstream, url: "https://example.com/marketing-copy", commit: "ffffffffffffffffffffffffffffffffffffffff", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:7777777777777777777777777777777777777777777777777777777777777777"}
+    status: active
+    review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
+    cost: {description_chars: 700, description_tokens_est: 175}
+    invocation: auto
+  - id: demo-pentest
+    name: demo-pentest
+    category: security
+    path: library/security/demo-pentest
+    scope: general
+    version: "1.0.0"
+    source: {type: upstream, url: "https://example.com/pentest", commit: "0000000000000000000000000000000000000000", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:8888888888888888888888888888888888888888888888888888888888888888"}
+    status: active
+    review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
+    cost: {description_chars: 800, description_tokens_est: 200}
+    invocation: manual
+    risk: {level: high, offensive: true, isolated_env_only: true}

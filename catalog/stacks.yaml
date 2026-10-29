@@ -1,0 +1,74 @@
+# Technology detection definitions (declarative; evaluated by the manager in M3).
+# Schema: catalog/schema/stacks.schema.json. Globs are relative to the project root.
+schema_version: 1
+stacks:
+  - id: java
+    name: Java
+    detect:
+      any:
+        - file: "**/pom.xml"
+        - file: "**/build.gradle"
+        - file: "**/build.gradle.kts"
+  - id: spring-boot
+    name: Spring Boot
+    detect:
+      any:
+        - file_contains: {glob: "**/pom.xml", pattern: "spring-boot"}
+        - file_contains: {glob: "**/build.gradle*", pattern: "org\\.springframework\\.boot"}
+    implies: [java]
+  - id: nodejs
+    name: Node.js
+    detect:
+      any:
+        - file: "**/package.json"
+  - id: typescript
+    name: TypeScript
+    detect:
+      any:
+        - file: "**/tsconfig.json"
+  - id: react
+    name: React
+    detect:
+      any:
+        - dependency: {ecosystem: npm, name: react}
+    implies: [nodejs]
+  - id: nextjs
+    name: Next.js
+    detect:
+      any:
+        - dependency: {ecosystem: npm, name: next}
+    implies: [react]
+  - id: postgres
+    name: PostgreSQL
+    detect:
+      any:
+        - dependency: {ecosystem: maven, name: "org.postgresql:postgresql"}
+        - dependency: {ecosystem: npm, name: pg}
+        - file_contains: {glob: "**/*compose*.y*ml", pattern: "image:\\s*[\"']?postgres"}
+  - id: flyway
+    name: Flyway migrations
+    detect:
+      any:
+        - dependency: {ecosystem: maven, name: "org.flywaydb:flyway-core"}
+        - file: "**/db/migration/V*__*.sql"
+  - id: docker
+    name: Docker
+    detect:
+      any:
+        - file: "**/Dockerfile"
+        - file: "**/*compose*.y*ml"
+  - id: python
+    name: Python
+    detect:
+      any:
+        - file: "**/pyproject.toml"
+        - file: "**/requirements*.txt"
+  - id: rtl-arabic
+    name: Arabic / RTL UI
+    detect:
+      any:
+        - file_contains: {glob: "**/*.html", pattern: "dir=[\"']rtl[\"']|lang=[\"']ar"}
+        - file_contains: {glob: "**/*.tsx", pattern: "dir=[\"']rtl[\"']|lang=[\"']ar"}
+        - file_contains: {glob: "**/*.jsx", pattern: "dir=[\"']rtl[\"']|lang=[\"']ar"}
+        - file: "**/locales/ar/**"
+        - file: "**/messages/ar.json"

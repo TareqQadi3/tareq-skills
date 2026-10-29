@@ -1,0 +1,5 @@
+schema_version: 1
+id: core
+description: Synthetic default pack.
+skills: [demo-testing-base]
+default: true

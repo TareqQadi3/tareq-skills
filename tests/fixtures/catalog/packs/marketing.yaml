@@ -1,0 +1,5 @@
+schema_version: 1
+id: marketing
+description: Synthetic marketing pack; never default.
+skills: [demo-marketing-copy]
+default: false

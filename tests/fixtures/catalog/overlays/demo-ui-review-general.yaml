@@ -1,0 +1,5 @@
+schema_version: 1
+skill: demo-ui-review-general
+reason: Synthetic overlay; run on request only.
+set:
+  invocation: manual

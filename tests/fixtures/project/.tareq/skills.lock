@@ -1,0 +1,49 @@
+# SYNTHETIC lock fixture. Regenerate if catalog fixtures or skills.yaml change.
+lock_version: 1
+generated_at: '2026-10-29T12:00:00Z'
+project: demo-app
+catalog:
+  repo: https://github.com/TareqQadi3/tareq-skills
+  commit: 5e3366a75e5ccef831a65e94c8bfd9b5d5194130
+  ref: catalog-v0.1.0
+config_hash: sha256:d6c66fd06b8181c0debf92de69f03e3ab05be5bd5277da0486eb57c88810a5e2
+budget:
+  max_descriptions: 10
+  used: 3
+targets:
+- claude-code
+- opencode
+packs:
+- id: backend-java
+  hash: sha256:2974de3baf21e19e7d7d3afed5aec3ba1897d2c37a317c46de77e168bae40d93
+- id: core
+  hash: sha256:914e31f5cdd8228f4df1fccfde90f04b971e817bbcf22d6cbabdd2078b15ed0d
+skills:
+- id: demo-project-review
+  version: 1.0.0
+  source:
+    type: local
+  content_hash: sha256:1111111111111111111111111111111111111111111111111111111111111111
+  license: MIT
+  via:
+  - include
+- id: demo-spring-guide
+  version: 3.0.0
+  source:
+    type: upstream
+    url: https://example.com/spring-guide
+    commit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  content_hash: sha256:3333333333333333333333333333333333333333333333333333333333333333
+  license: MIT
+  via:
+  - pack:backend-java
+- id: demo-testing-base
+  version: 1.2.0
+  source:
+    type: upstream
+    url: https://example.com/testing-base
+    commit: cccccccccccccccccccccccccccccccccccccccc
+  content_hash: sha256:4444444444444444444444444444444444444444444444444444444444444444
+  license: ISC
+  via:
+  - pack:backend-java

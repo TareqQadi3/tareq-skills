@@ -4,8 +4,7 @@ Centralized, reusable skills library for all of Tareq's current and future proje
 with a reusable manager skill (`tareq-skill`) that selects and activates the best
 compatible skills per project, for **Claude Code** and **OpenCode**.
 
-> Status: **M0 — bootstrap**. Structure and documentation only. No skills have been
-> imported yet. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current state.
+> Status: **M1 — catalog schema and validation**. No skills have been imported yet. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current state.
 
 ## Why
 
@@ -37,23 +36,26 @@ This repository is the single, versioned source of truth that fixes those proble
 | Path | Purpose | Milestone |
 |---|---|---|
 | `library/<category>/<skill>/` | Verbatim skill copies + `SOURCE.txt` | M4 |
-| `catalog/` | `skills.yaml`, `stacks.yaml`, `packs/`, `overlays/` | M1 |
+| `catalog/` | `skills.yaml`, `stacks.yaml`, `packs/`, `overlays/`, `schema/` | M1 |
 | `tareq-skill/` | The manager skill (`SKILL.md` + scripts) | M3 |
-| `bin/` | Tools: `scan`, `select`, `sync`, `audit`, `doctor`, `rollback` | M3 |
+| `bin/` | `validate_catalog.py` (M1); `scan`, `select`, `sync`, `audit`, `doctor`, `rollback` (M3) | M1, M3 |
+| `tests/` | Validator tests and synthetic fixtures | M1 |
 | `templates/` | Client project templates (skills manifest, project log, instructions) | M3 |
 | `docs/` | Handoff, project log, decisions, roadmap, architecture | M0 |
 | `CLAUDE.md` | Permanent working rules for AI agents in this repo | M0 |
 
 Client projects will hold `.tareq/skills.yaml` (selected packs/skills) and
-`.tareq/skills.lock` (resolved, pinned list). Format is defined in M1.
+`.tareq/skills.lock` (resolved, pinned list). See [`docs/architecture/catalog.md`](docs/architecture/catalog.md).
 
 ## Documentation
 
 - [`docs/HANDOFF.md`](docs/HANDOFF.md) — current state and next actions (start here)
 - [`docs/decisions.md`](docs/decisions.md) — approved and open decisions
-- [`docs/roadmap.md`](docs/roadmap.md) — milestones M0–M7 and acceptance criteria
+- [`docs/implementation-plan.md`](docs/implementation-plan.md) — strategy, capabilities, milestones
+- [`docs/roadmap.md`](docs/roadmap.md) — milestone status
 - [`docs/project-log.md`](docs/project-log.md) — milestone log
 - [`docs/architecture/overview.md`](docs/architecture/overview.md) — approved architecture
+- [`docs/architecture/catalog.md`](docs/architecture/catalog.md) — catalog data model and validation rules
 - [`docs/TAREQ-SKILLS-PROJECT-HANDOFF.md`](docs/TAREQ-SKILLS-PROJECT-HANDOFF.md) — original handoff (Arabic, authoritative history; do not edit)
 
 ## License

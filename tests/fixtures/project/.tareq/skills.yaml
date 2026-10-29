@@ -1,0 +1,11 @@
+# SYNTHETIC client project configuration.
+schema_version: 1
+project: demo-app
+catalog:
+  repo: https://github.com/TareqQadi3/tareq-skills
+  ref: catalog-v0.1.0
+packs: [backend-java]
+include: [demo-project-review, demo-ui-review-general]
+budget:
+  max_descriptions: 10
+targets: [claude-code, opencode]

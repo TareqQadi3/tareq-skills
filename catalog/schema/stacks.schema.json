@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stacks.schema.json",
+  "title": "Technology detection definitions (catalog/stacks.yaml)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "stacks"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "stacks": {"type": "array", "items": {"$ref": "#/$defs/stack"}}
+  },
+  "$defs": {
+    "stack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "detect"],
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/id"},
+        "name": {"type": "string", "minLength": 1},
+        "detect": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "any": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/rule"}},
+            "all": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/rule"}}
+          }
+        },
+        "implies": {"$ref": "common.schema.json#/$defs/idList"}
+      }
+    },
+    "rule": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "file": {"type": "string", "minLength": 1},
+        "file_contains": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["glob", "pattern"],
+          "properties": {
+            "glob": {"type": "string", "minLength": 1},
+            "pattern": {"type": "string", "minLength": 1}
+          }
+        },
+        "dependency": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ecosystem", "name"],
+          "properties": {
+            "ecosystem": {"enum": ["npm", "maven", "gradle", "pip"]},
+            "name": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    }
+  }
+}

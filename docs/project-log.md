@@ -25,3 +25,15 @@ Meaningful milestones and results only. Newest last.
 
 - PR #1 merged to `main` (merge commit `5e3366a`); content identical to PR head `d4f35ca`.
 - `main` branch protection: not configured (`protected: false`); owner action pending.
+
+## 2026-10-29 — M1: catalog schema and validation
+
+- Decisions recorded: D-14 budget (hard max 40, not a target), D-15 licenses, D-16 conflict
+  priority, D-17 Python, D-18 strategy (`implementation-plan.md`).
+- Delivered: 7 JSON Schemas (`catalog/schema/`), `catalog/skills.yaml` (empty),
+  `catalog/stacks.yaml` (11 stacks), `bin/validate_catalog.py`, `tests/` (61 tests, synthetic
+  fixtures), `docs/architecture/catalog.md`, `docs/implementation-plan.md`; `roadmap.md`
+  reduced to a status tracker.
+- Tests: 61/61 PASS. Mutation check (license rule and pack-cycle rule disabled) made the
+  matching tests fail, confirming they test real behavior.
+- No skills imported; no existing skill or project touched.
