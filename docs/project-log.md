@@ -20,3 +20,8 @@ Meaningful milestones and results only. Newest last.
   handoff archived verbatim (SHA-256 `20b62e6f…0188`).
 - Branch protection on `main`: see `docs/HANDOFF.md` (not configurable from this session).
 - Session model: `claude-opus-5-5` (from session metadata). No subagents used.
+
+## 2026-10-29 — M0 merged
+
+- PR #1 merged to `main` (merge commit `5e3366a`); content identical to PR head `d4f35ca`.
+- `main` branch protection: not configured (`protected: false`); owner action pending.
