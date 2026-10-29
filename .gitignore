@@ -1,0 +1,27 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Secrets and local environment — never commit
+.env
+.env.*
+*.pem
+*.key
+*.p12
+secrets/
+
+# Local Claude Code settings
+.claude/settings.local.json
+
+# Tool output and caches
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+dist/
+build/
+tmp/
+*.log
