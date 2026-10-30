@@ -5,7 +5,7 @@ History and full rationale: [`TAREQ-SKILLS-PROJECT-HANDOFF.md`](TAREQ-SKILLS-PRO
 (do not edit). Rules: [`../CLAUDE.md`](../CLAUDE.md). Strategy:
 [`implementation-plan.md`](implementation-plan.md).
 
-**Last updated:** 2026-10-29 · **Milestone:** M2 complete, in PR review · **Next:** M3 (needs owner approval + O-05/O-09)
+**Last updated:** 2026-10-29 · **Milestone:** M2 complete, in PR review · **Next:** M3 (planned; needs owner authorization)
 
 ## State
 
@@ -24,15 +24,15 @@ History and full rationale: [`TAREQ-SKILLS-PROJECT-HANDOFF.md`](TAREQ-SKILLS-PRO
 
 ## Owner actions pending
 
-1. Review and merge the M2 PR; decide O-05 and O-09.
-2. Protect `main` (GitHub → Settings → Rules → Rulesets → New branch ruleset → target
+1. Review and merge the M2 PR (#3).
+2. Decide O-14 (license for owner-authored local skills) and authorize M3.
+3. Protect `main` (GitHub → Settings → Rules → Rulesets → New branch ruleset → target
    `main` → "Require a pull request before merging" + "Block force pushes"). On private
    repos this may require GitHub Pro; otherwise D-11 is enforced by convention.
 
 ## Next actions (M3, after approval)
 
-- Build the minimum manager per `implementation-plan.md` and requirements R-01…R-11 in
-  `architecture/adapters.md`.
+- Execute the M3 plan in `implementation-plan.md` (requirements R-01…R-17, safeguards D-22).
 
 ## Do not
 

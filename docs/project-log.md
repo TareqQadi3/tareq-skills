@@ -60,3 +60,5 @@ Meaningful milestones and results only. Newest last.
 - Live probes with Claude Code 2.1.312 confirmed copy, symlink, `disable-model-invocation`,
   `skillOverrides`, and CLAUDE.md/AGENTS.md/rules loading. OpenCode: NOT TESTED.
 - Recommendations for O-05 and O-09 recorded; awaiting owner decision.
+- Owner approved O-05 and O-09 (D-20, D-21) with sync safeguards (D-22 → R-12…R-17).
+  M3 plan added to `implementation-plan.md`; M3 not started.

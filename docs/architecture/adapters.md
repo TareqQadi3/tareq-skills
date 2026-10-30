@@ -1,7 +1,7 @@
 # Agent integration: Claude Code and OpenCode (M2)
 
-Adapter requirements derived from official documentation and local probes. Implementation
-is M3. Labels: **[doc]** stated in official docs · **[probe]** observed in a local
+Adapter requirements derived from official documentation and local probes, plus owner
+safeguards (D-22). Implementation is M3. Labels: **[doc]** stated in official docs · **[probe]** observed in a local
 Claude Code run (see Evidence) · **[unverified]** not documented or not tested.
 
 ## Sources (read 2026-10-30)
@@ -85,6 +85,17 @@ The project's own `CLAUDE.md` and `AGENTS.md` are never modified.
 | R-09 | Preflight: detect name collisions with personal skills (`~/.claude/skills`, `~/.config/opencode/skills`, `~/.agents/skills`) and project `.opencode/skills`, `.agents/skills`. A personal skill with the same name **shadows** the project copy in Claude Code. Warn when `OPENCODE_DISABLE_CLAUDE_CODE*` is set. | Precedence rules |
 | R-10 | Review gate (M4): flag `allowed-tools`, `hooks`, `model`, `context: fork`, and `` !`command` `` injection in imported skills. These grant capabilities in Claude Code and are silently ignored by OpenCode. | Security; behavior differs |
 | R-11 | Rollback = restore the previous lock and regenerate, or `git revert` the sync commit in the client repo. Either gives the same files because output is deterministic. | M1 lock design |
+
+### Owner safeguards (D-22)
+
+| ID | Requirement |
+|---|---|
+| R-12 | Never overwrite or delete a project skill or file that the lock does not record as tareq-generated. Any change to such a file needs explicit owner approval for that file. |
+| R-13 | Name-collision detection (R-09) runs before every sync. Any collision **blocks** the sync until the owner decides. |
+| R-14 | Every sync is pinned to an exact 40-char library commit. Content hashes are verified on the fetched source before copying, and on the written files after copying. Any mismatch aborts with no partial write. |
+| R-15 | Sync runs as a dry run first. It shows a change summary: skills added, updated, or removed; owned settings keys; budget before and after; collisions. Apply requires approval of that exact summary: the apply step must present the summary's hash and refuses if the plan changed. |
+| R-16 | Disabled skills stay in the catalog. Removing a generated skill from a project happens only for tareq-owned files, only through an approved plan. Manually maintained project files are never touched. |
+| R-17 | Reports label OpenCode results **documented** (from docs) or **tested** (executed). Untested OpenCode behavior is never reported as PASS. |
 
 ## Limitations
 

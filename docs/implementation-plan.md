@@ -50,6 +50,22 @@ Each milestone starts only after the owner approves the previous one (merged PR)
 | M6 | Expansion: remaining requested repos (O-07), cross-project adoption proposals, tooling (O-08) | M5 accepted | Driven by pilot findings; each addition approved. |
 | M7 | CI and quality: tests on PRs, secret scanning, schema/link checks | M1 (can start any time after) | CI green on PRs. |
 
+## M3 plan (awaiting authorization)
+
+One work package on `claude/m3-manager`; Python only (D-17). Requirements: R-01…R-17 in
+[`architecture/adapters.md`](architecture/adapters.md).
+
+| Part | Content |
+|---|---|
+| Lock v2 | Extend `lock.schema.json` (`lock_version: 2`): generated files with output hashes, tareq-owned settings keys, library commit. Update the validator and tests. |
+| CLI `bin/tareq` | `scan` (evaluate `stacks.yaml`) · `select` (propose the smallest pack/skill set; same-level conflicts are presented, never chosen) · `sync --plan` (dry-run summary + plan hash) · `sync --apply --plan-hash H` · `doctor` (collisions, hashes, drift, `OPENCODE_DISABLE_*`) · `rollback --to <git-rev>` · `add-skill` (intake as `candidate` with computed hash and `SOURCE.txt`) |
+| Adapters | Claude Code: copy into `.claude/skills/`, `skillOverrides`, `.claude/rules/tareq-skills.md`. OpenCode: `opencode.json` `permission.skill` + `instructions`. |
+| Project files | Generated skill register by category plus `.tareq/history.md` (append-only decisions log), from `templates/`. |
+| Manager skill | `tareq-skill/SKILL.md`: owner rules, when to run each command, approval steps. |
+| Tests | Unit tests per command; end-to-end on a temp synthetic project (scan → select → plan → apply → verify hashes → manual edit preserved → collision blocks → rollback); live Claude Code probe of generated output. OpenCode: documented only, NOT TESTED. |
+
+Acceptance: the M3 row above, plus every R-12…R-17 safeguard has a failing-path test.
+
 **Gate to expand (M6):** the M5 pilot shows the basic workflow works in real use, with
 measured context savings and no unresolved defects.
 

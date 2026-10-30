@@ -26,14 +26,16 @@ Source of truth for owner decisions. Section references (§) point to
 | D-17 | Implementation language (O-13): Python 3 + PyYAML + jsonschema; no other language without a concrete reason and approval. | 2026-10-29 | M1 approval |
 | D-18 | Strategy: smallest operational version first, validated on SMMS before expansion; see `implementation-plan.md` (capabilities, deferred features, milestones). | 2026-10-29 | M1 approval |
 | D-19 | O-12 closed without a network change: OpenCode docs are read from the official docs source in `github.com/sst/opencode` (commit recorded in `architecture/adapters.md`); `opencode.ai` stays blocked. | 2026-10-30 | M2 |
+| D-20 | Distribution (O-05): pinned verbatim copies committed in the client's `.claude/skills/` only (shared with OpenCode); no plugin marketplace. | 2026-10-30 | M2 approval |
+| D-21 | Consumption (O-09): a sync command fetches the library at an exact commit outside the client repo and writes generated files + lock into it; no submodule/subtree. | 2026-10-30 | M2 approval |
+| D-22 | Sync safeguards: never overwrite/delete existing project skills without explicit approval; detect name collisions before sync; pin every sync to an exact commit and verify content hashes; show a change summary and get approval before applying; preserve disabled skills and manually maintained project files; report documented OpenCode compatibility separately from tested behavior (untested is never PASS). See R-12…R-17 in `architecture/adapters.md`. | 2026-10-30 | M2 approval |
 
 ## Open
 
 | ID | Question | Current recommendation | Needed by |
 |---|---|---|---|
-| O-05 | Claude Code distribution: pinned copies in `.claude/skills/`, private plugin marketplace, or both. | Pinned verbatim copies committed in the client's `.claude/skills/` only (shared with OpenCode; repo-declared plugins don't load in cloud sessions). See `architecture/adapters.md`. | M3 |
 | O-06 | `disable-model-invocation: true` for `arena` and similar costly skills. | Yes (manual-only). | M6 |
 | O-07 | Fate of the 8 requested external repos (emilkowalski, impeccable, taste-skill, roast-room, marketingskills, instagram, youtube, arena-skill-16) and figma / playwright MCP. | Review one by one before any import; deferred until after the SMMS pilot (D-18). | M6 |
 | O-08 | Browser, testing, and security tooling choices. | Evaluate step by step. | M6 |
-| O-09 | How clients consume the library (clone, submodule, subtree, sync script, plugin). | Sync command fetches the library at the pinned commit outside the client repo and writes the generated files + lock into it; no submodule/subtree. | M3 |
 | O-10 | SMMS skills cleanup (what to disable/merge). | Separate SMMS-track decision after M5. | M5 |
+| O-14 | License for owner-authored local skills (e.g. `tareq-skill`) with no license file: exempt `source.type: local` from D-15, or require a recorded `license_exception` each time. | Exempt local skills authored in this repo. | M3 |
