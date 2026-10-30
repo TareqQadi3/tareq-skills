@@ -168,6 +168,14 @@ MUTATIONS = [
     ("symlinks: note rewrites instead of appending",
      [("bin/tareqlib/workflow.py", "os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW\n                         | os.O_NONBLOCK", "os.O_WRONLY | os.O_TRUNC | os.O_CREAT | os.O_NOFOLLOW\n                         | os.O_NONBLOCK")],
      [SEC + "TestSymlinkWrites.test_note_appends_and_never_rewrites_existing_history"]),
+    # --- M4 provenance for authored skills
+    ("intake: authored skill provenance not recorded",
+     [("bin/tareqlib/workflow.py", '                        **({"url": url, "commit": commit} if url and commit else {})}', '                        }')],
+     [MAN + "TestIntake.test_authored_skill_can_record_where_it_was_derived_from"]),
+    # --- M4 scanner fix
+    ("scan: skill directories are scanned as project files",
+     [("bin/tareqlib/fsutil.py", '                        ".claude", ".opencode", ".agents"})', '                        })')],
+     [MAN + "TestScanAndSelect.test_skill_directories_are_not_part_of_the_project"]),
     # --- earlier safeguards that this change touched
     ("R-13: personal-skill collisions not detected",
      [("bin/tareqlib/sync.py", "            if (base / sid).exists() or (base / sid).is_symlink():", "            if False:")],

@@ -9,9 +9,12 @@ import re
 import tempfile
 from pathlib import Path
 
-# Directories never scanned for stack detection.
+# Directories never scanned for stack detection. Skill directories are pruned because a
+# skill's own manifests (a package.json or requirements.txt shipped inside it) describe the
+# skill, not the project; scanning them reported stacks SMMS does not use (M4 finding).
 PRUNE_DIRS = frozenset({".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build",
-                        "target", ".next", ".gradle", ".idea", ".tareq"})
+                        "target", ".next", ".gradle", ".idea", ".tareq",
+                        ".claude", ".opencode", ".agents"})
 MAX_SCAN_FILE_BYTES = 1_000_000
 
 

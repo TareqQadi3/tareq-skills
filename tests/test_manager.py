@@ -175,6 +175,16 @@ class TestScanAndSelect(unittest.TestCase):
             self.assertIn(sid, found)
         self.assertNotIn("python", found)
 
+    def test_skill_directories_are_not_part_of_the_project(self):
+        # A skill that ships its own requirements.txt / package.json must not make the
+        # project look like a Python or Next.js project (found while scanning SMMS).
+        self.write(".claude/skills/some-skill/requirements.txt", "requests\n")
+        self.write(".claude/skills/some-skill/package.json", json.dumps({"dependencies": {"next": "14"}}))
+        self.write(".opencode/skills/other/package.json", json.dumps({"dependencies": {"react": "18"}}))
+        self.write("backend/pom.xml", "<project><parent><artifactId>spring-boot-starter-parent</artifactId></parent></project>")
+        found = scan.scan(self.p, self.cat.stacks)
+        self.assertEqual(sorted(found), ["java", "spring-boot"])
+
     def test_vendored_dirs_ignored(self):
         self.write("node_modules/x/package.json", json.dumps({"dependencies": {"next": "1"}}))
         found = scan.scan(self.p, self.cat.stacks)
@@ -747,6 +757,24 @@ class TestIntake(unittest.TestCase):
         self.assertEqual(v.content_hash(self.repo / "library/testing/new-skill"), entry["source"]["content_hash"])
         issues = v.validate(self.repo / "catalog")
         self.assertEqual({i.code for i in issues if i.severity == "error"}, set())
+
+    def test_authored_skill_can_record_where_it_was_derived_from(self):
+        sha = "a" * 40
+        entry = workflow.add_skill(self.repo, self.src, skill_id="new-skill", category="testing", scope="general",
+                                   version="1.0.0", authored=True, url="https://github.com/example/proj", commit=sha)
+        self.assertEqual((entry["source"]["type"], entry["source"]["url"], entry["source"]["commit"]),
+                         ("local", "https://github.com/example/proj", sha))
+        text = (self.repo / "library/testing/new-skill/SOURCE.txt").read_text()
+        self.assertIn(f"derived-from: https://github.com/example/proj @ {sha}", text)
+        self.assertNotIn("tareq-skills", text)
+        self.assertEqual({i.code for i in v.validate(self.repo / "catalog") if i.severity == "error"}, set())
+
+    def test_authored_derived_commit_must_be_full(self):
+        before = snapshot(self.repo)
+        with self.assertRaises(SyncError):
+            workflow.add_skill(self.repo, self.src, skill_id="new-skill", category="testing", scope="general",
+                               version="1", authored=True, url="https://github.com/example/proj", commit="main")
+        self.assertEqual(snapshot(self.repo), before)
 
     def test_third_party_requires_pinned_commit(self):
         with self.assertRaises(SyncError):

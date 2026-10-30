@@ -108,3 +108,20 @@ approval (Option A, D-26, D-27).
   Power-loss durability and a real person typing on a real device: NOT TESTED. OpenCode: NOT TESTED.
 - In this cloud session the real CLI refuses `--apply` (exit 2): the owner's iPhone + cloud
   environment cannot approve a sync. Decision O-15.
+
+## 2026-10-30 — M4: SMMS seed proposal (preparation only)
+
+- M3 merged (PR #4, `ef45bff`). SMMS inspected read-only at `claude/feature-program-1`
+  (`a21bfb8`); `main` is stale and has no skills.
+- Findings: the six SMMS project skills are stale (Flyway, inventory, notifications); all 86
+  skills with `SOURCE.txt` are byte-identical to `spruvex-r@86b8eac`, which ships no license files;
+  exact MIT upstream commits found for `systematic-debugging` and `test-driven-development`.
+  A plaintext credential is committed in SMMS (reported, not touched).
+- Proposed 8 of 111 skills (2,014 description characters; budget 8/40). Detail:
+  `m4-smms-proposal.md`.
+- Manager fixes: `scan` no longer reads skill directories as project files (was reporting
+  Python/Node); `add-skill --authored` can record the origin it was derived from. Tests and
+  mutation entries added.
+- Scratch dry run: validator 0 errors, `select` proposes `core`, `sync` plan ready with
+  `--adopt`/`--approve-overwrite`. Apply NOT attempted (needs a terminal, D-26).
+- Nothing imported into the library; SMMS unchanged.
