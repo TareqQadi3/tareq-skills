@@ -1,4 +1,8 @@
-"""Command-line interface: `bin/tareq <command> ...`. Exit 0 on success, 1 on failure/blocked."""
+"""Command-line interface: `bin/tareq <command> ...`.
+
+Exit codes: 0 success, 1 failure or blocked plan, 2 approval unavailable or denied.
+There is deliberately no flag or environment variable that skips or simulates approval, and
+no way to redirect the collision-check home directory (D-26, F3)."""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import validate_catalog as v  # noqa: E402
 
-from . import library, scan as scan_mod, selection, workflow  # noqa: E402
+from . import approval as approval_mod, library, lock as lock_mod, scan as scan_mod, selection, workflow  # noqa: E402
+from .fsutil import UnsafePathError  # noqa: E402
 from .sync import CONFIG_FILE, SyncError  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -38,21 +43,16 @@ def cmd_select(a) -> int:
     proposal = selection.propose(cat, detected, set(a.tags.split(",")) if a.tags else None)
     print(json.dumps({"detected_stacks": sorted(detected), **proposal}, indent=2, default=list))
     if a.init:
-        path = a.project / CONFIG_FILE
-        if path.exists():
-            print(f"{CONFIG_FILE} already exists; not modified", file=sys.stderr)
-            return 1
         if not a.repo or not a.ref:
             print("--init needs --repo and --ref", file=sys.stderr)
             return 1
-        path.parent.mkdir(parents=True, exist_ok=True)
+        import yaml
         cfg = {"schema_version": 1, "project": a.name or a.project.resolve().name.lower(),
                "catalog": {"repo": a.repo, "ref": a.ref}, **proposal["config"],
                "budget": {"max_descriptions": v.DEFAULT_MAX_DESCRIPTIONS},
                "targets": a.targets.split(",")}
-        import yaml
-        path.write_text("# tareq-skills project configuration (maintained by the owner).\n"
-                        + yaml.safe_dump(cfg, sort_keys=False))
+        workflow.init_config(a.project, "# tareq-skills project configuration (maintained by the owner).\n"
+                             + yaml.safe_dump(cfg, sort_keys=False))
         print(f"wrote {CONFIG_FILE} (proposal only; review before planning a sync)")
     return 1 if proposal["needs_owner_decision"] else 0
 
@@ -60,41 +60,77 @@ def cmd_select(a) -> int:
 def _print_plan(plan, ctx, extra_apply: str) -> int:
     print(plan.summary)
     if plan.ok:
-        print(f"\nTo apply after owner approval:\n  bin/tareq {extra_apply} --apply {plan.fingerprint}"
-              f" --commit {ctx.commit}")
+        print("\nApplying needs an explicit confirmation typed by a person on an interactive "
+              "terminal; it is refused anywhere else.\nTo apply, run in a terminal:\n  "
+              f"bin/tareq {extra_apply} --apply {plan.fingerprint}" + (f" --commit {ctx.commit}" if ctx else ""))
     return 0 if plan.ok else 1
+
+
+def _approve(plan, action: str) -> approval_mod.Approval:
+    """The only way to obtain an Approval from the CLI: a human on the controlling terminal."""
+    return approval_mod.request_tty_approval(summary=plan.summary, fingerprint=plan.fingerprint,
+                                             action=action)
 
 
 def cmd_sync(a) -> int:
-    kw = dict(source=a.library, home=a.home, adopt=set(a.adopt), approve_overwrite=set(a.approve_overwrite))
+    kw = dict(source=a.library, adopt=set(a.adopt), approve_overwrite=set(a.approve_overwrite))
     base = f"sync --project {a.project}" + (f" --library {a.library}" if a.library else "") + \
         "".join(f" --adopt {x}" for x in a.adopt) + "".join(f" --approve-overwrite {x}" for x in a.approve_overwrite)
-    if a.apply:
-        if not a.commit:
-            print("--apply requires --commit (the exact commit shown by the plan)", file=sys.stderr)
-            return 1
-        lock = workflow.apply_project_sync(a.project, a.apply, commit=a.commit, **kw)
-        print(f"applied: {len(lock['skills'])} skill(s) at {lock['catalog']['commit']}")
-        return 0
-    plan, ctx = workflow.plan_project_sync(a.project, ref=a.ref, commit=a.commit, **kw)
-    return _print_plan(plan, ctx, base)
+    if not a.apply:
+        plan, ctx = workflow.plan_project_sync(a.project, ref=a.ref, commit=a.commit, **kw)
+        return _print_plan(plan, ctx, base)
+    if not a.commit:
+        print("--apply requires --commit (the exact commit shown by the plan)", file=sys.stderr)
+        return 1
+    plan, _ = workflow.plan_project_sync(a.project, commit=a.commit, **kw)
+    if not plan.ok:
+        print(plan.summary)
+        return 1
+    if plan.fingerprint != a.apply:
+        print("error: the plan changed since it was shown (fingerprint mismatch); nothing was "
+              f"applied. Current fingerprint: {plan.fingerprint}", file=sys.stderr)
+        return 1
+    approval = _approve(plan, "synchronize this project")
+    lock = workflow.apply_project_sync(a.project, approval, commit=a.commit, source=a.library,
+                                       adopt=set(a.adopt), approve_overwrite=set(a.approve_overwrite))
+    print(f"applied: {len(lock['skills'])} skill(s) at {lock['catalog']['commit']}")
+    return 0
 
 
 def cmd_rollback(a) -> int:
-    if a.apply:
-        lock = workflow.apply_rollback(a.project, a.to, a.apply, source=a.library, home=a.home)
-        print(f"rolled back to {a.to}: {len(lock['skills'])} skill(s)")
-        return 0
-    plan, ctx = workflow.plan_rollback(a.project, a.to, source=a.library, home=a.home)
-    print(plan.summary)
-    if plan.ok:
-        print(f"\nTo apply after owner approval:\n  bin/tareq rollback --project {a.project} --to {a.to}"
-              + (f" --library {a.library}" if a.library else "") + f" --apply {plan.fingerprint}")
-    return 0 if plan.ok else 1
+    plan, ctx = workflow.plan_rollback(a.project, a.to, source=a.library)
+    if not a.apply:
+        print(plan.summary)
+        if plan.ok:
+            print("\nApplying needs an explicit confirmation typed by a person on an interactive "
+                  f"terminal.\nTo apply, run in a terminal:\n  bin/tareq rollback --project {a.project} "
+                  f"--to {a.to}" + (f" --library {a.library}" if a.library else "")
+                  + f" --apply {plan.fingerprint}")
+        return 0 if plan.ok else 1
+    if not plan.ok:
+        print(plan.summary)
+        return 1
+    if plan.fingerprint != a.apply:
+        print("error: the plan changed since it was shown (fingerprint mismatch); nothing was "
+              f"applied. Current fingerprint: {plan.fingerprint}", file=sys.stderr)
+        return 1
+    approval = _approve(plan, f"roll back this project to {a.to}")
+    lock = workflow.apply_rollback(a.project, a.to, approval, source=a.library)
+    print(f"rolled back to {a.to}: {len(lock['skills'])} skill(s)")
+    return 0
+
+
+def cmd_recover(a) -> int:
+    result = workflow.recover_project(a.project)
+    print({"rolled-back": "interrupted transaction rolled back; the project is in its pre-sync state",
+           "committed": "completed transaction cleaned up",
+           "discarded": "incomplete transaction discarded; nothing had been modified",
+           None: "nothing to recover"}[result])
+    return 0
 
 
 def cmd_doctor(a) -> int:
-    issues = workflow.doctor(a.project, home=a.home, source=a.library)
+    issues = workflow.doctor(a.project, source=a.library)
     for i in issues:
         print(i)
     errors = sum(i.severity == "error" for i in issues)
@@ -118,11 +154,15 @@ def cmd_note(a) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="tareq", description="tareq-skills manager")
+    # allow_abbrev=False: a prefix like `--approve` must never silently mean `--approve-overwrite`.
+    ap = argparse.ArgumentParser(prog="tareq", description="tareq-skills manager", allow_abbrev=False)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     def project_arg(p):
         p.add_argument("--project", type=Path, required=True, help="client project root")
+
+    _add_parser = sub.add_parser
+    sub.add_parser = lambda *args, **kw: _add_parser(*args, allow_abbrev=False, **kw)
 
     p = sub.add_parser("scan", help="detect project technologies")
     project_arg(p)
@@ -143,8 +183,8 @@ def main(argv: list[str] | None = None) -> int:
         p = sub.add_parser(name, help=helptext)
         project_arg(p)
         p.add_argument("--library", help="library git source (default: catalog.repo)")
-        p.add_argument("--home", type=Path, default=Path.home(), help=argparse.SUPPRESS)
-        p.add_argument("--apply", metavar="FINGERPRINT", help="apply the approved plan")
+        p.add_argument("--apply", metavar="FINGERPRINT",
+                       help="apply this plan after you confirm it on an interactive terminal")
         if name == "sync":
             p.add_argument("--ref"), p.add_argument("--commit")
             p.add_argument("--adopt", action="append", default=[],
@@ -158,8 +198,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("doctor", help="read-only project health check")
     project_arg(p)
     p.add_argument("--library")
-    p.add_argument("--home", type=Path, default=Path.home(), help=argparse.SUPPRESS)
     p.set_defaults(fn=cmd_doctor)
+
+    p = sub.add_parser("recover", help="repair an interrupted sync/rollback (restores the pre-sync state)")
+    project_arg(p)
+    p.set_defaults(fn=cmd_recover)
 
     p = sub.add_parser("add-skill", help="add a skill to the library as candidate")
     p.add_argument("source_dir", type=Path)
@@ -180,6 +223,10 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     try:
         return a.fn(a)
-    except (SyncError, library.LibraryError, v.FrontmatterError) as exc:
+    except approval_mod.ApprovalError as exc:
+        print(f"error: approval not established: {exc}", file=sys.stderr)
+        return 2
+    except (SyncError, library.LibraryError, v.FrontmatterError, lock_mod.ProjectBusy,
+            UnsafePathError, workflow.txn.TransactionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

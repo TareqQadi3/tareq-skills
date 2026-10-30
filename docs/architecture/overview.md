@@ -31,7 +31,8 @@ Agent integration requirements: [`adapters.md`](adapters.md) (M2). Anything not 
 2. **Select** — match packs to stacks and task type; resolve conflicts (D-16); respect the context budget (D-14).
 3. **Propose** — show the owner options with comparison and recommendation; record the
    decision in the project log.
-4. **Sync** — only after explicit owner approval: write the lock file and generate adapter output.
+4. **Sync** — only after the owner confirms the exact plan on a terminal (enforced by the tool,
+   see [`approval.md`](approval.md)): write the lock file and generate adapter output.
 5. **Audit / doctor / rollback** — conflicts and context cost, health checks, return to a
    previous lock.
 

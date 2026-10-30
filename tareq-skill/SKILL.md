@@ -1,6 +1,6 @@
 ---
 name: tareq-skill
-description: Manage a project's skills with the tareq-skills library - detect the stack, propose the smallest suitable skill set, plan a pinned sync, show the change summary, apply only the owner-approved plan fingerprint, check health, roll back, and record notes and lessons. Use when the user asks which skills a project should use, to add, update, remove, or roll back project skills, or to check skill conflicts, collisions, or context budget.
+description: Manage a project's skills with the tareq-skills library - detect the stack, propose the smallest suitable skill set, plan a pinned sync and show the change summary, hand the owner the apply command (the tool needs the owner's confirmation on a terminal), check health, recover, roll back, and record notes and lessons. Use when the user asks which skills a project should use, to add, update, remove, or roll back project skills, or to check skill conflicts, collisions, or context budget.
 license: Proprietary (internal / authored, D-23)
 compatibility: claude-code, opencode
 ---
@@ -27,11 +27,18 @@ Rules and requirements: `CLAUDE.md`, `docs/architecture/manager.md`, `docs/archi
    - Show the owner the full summary: skills added/updated/removed, budget, settings changes,
      anything left untouched, and every `BLOCKED` line.
    - A blocked plan cannot be applied. Explain each block and let the owner decide.
-4. **Apply**: only after the owner approves that exact summary, run the printed command:
-   `--apply <fingerprint> --commit <sha>`.
+4. **Apply** is done by the owner, not by you. The tool itself requires a person to type a
+   confirmation on a terminal; a fingerprint is never approval.
+   - Give the owner the plan summary and the printed `--apply <fingerprint> --commit <sha>`
+     command to run in their own terminal.
+   - In agent and cloud sessions the command is refused with exit 2. That is the design. Report
+     it and stop. Never emulate a terminal, unset `CLAUDECODE`, or work around it.
    - If anything changed since the plan, apply refuses. Re-plan and ask again.
 5. **Doctor**: `bin/tareq doctor --project <dir> [--library <src>]` is a read-only health check.
-6. **Rollback**: `bin/tareq rollback --project <dir> --to <git-rev>` plans; `--apply <fingerprint>` applies.
+   - `txn-pending` means an earlier run was interrupted: run `bin/tareq recover --project <dir>`
+     (it only restores the pre-sync state; it does not need approval).
+6. **Rollback**: `bin/tareq rollback --project <dir> --to <git-rev>` plans; `--apply <fingerprint>`
+   is run by the owner on a terminal, like sync.
    - It restores only tareq-owned files and settings, never `.tareq/skills.yaml`.
 7. **Record**: `bin/tareq note --project <dir> --category <decisions|lessons|...> "<text>"`.
 8. **New skill**: `bin/tareq add-skill <dir> --id ... --category ... --version ...`.
@@ -43,5 +50,6 @@ Rules and requirements: `CLAUDE.md`, `docs/architecture/manager.md`, `docs/archi
 ## Never
 
 - Edit generated skills or `.tareq/skills.lock` by hand.
-- Use `--approve-overwrite` without the owner's explicit approval for that skill.
+- Use `--approve-overwrite` or `--adopt` without the owner's explicit approval for that skill.
+- Try to apply, simulate approval, or look for flags, environment variables, or other paths that skip it.
 - Run scripts from a skill during intake or review.

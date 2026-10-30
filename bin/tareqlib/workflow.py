@@ -13,8 +13,8 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import validate_catalog as v  # noqa: E402
 
-from . import library  # noqa: E402
-from .fsutil import path_state, sha256_file  # noqa: E402
+from . import approval as approval_mod, library, lock as lock_mod, txn  # noqa: E402
+from .fsutil import UnsafePathError, path_state, real_home, safe_dest, sha256_bytes, sha256_file  # noqa: E402
 from .sync import (CONFIG_FILE, HISTORY_FILE, LOCK_FILE, SKILLS_DIR, TEMPLATES, Plan,  # noqa: E402
                    SyncError, apply_plan, build_desired, load_library_catalog, plan_sync, read_lock)
 
@@ -52,6 +52,32 @@ def _context(project: Path, source: str | None, ref: str | None, commit: str | N
 
 # --------------------------------------------------------------------------- sync
 
+def _lock_verifier(source: str, current_commit: str, current_checkout: Path):
+    """F4: corroborate an existing lock's skill files against the library at the lock's own
+    commit, so a forged lock cannot make sync/rollback delete files tareq never generated."""
+    def verify(lock: dict) -> list[str]:
+        commit = lock["catalog"]["commit"]
+        try:
+            checkout = current_checkout if commit == current_commit else library.checkout(source, commit)
+            problems: list[str] = []
+            desired = build_desired(
+                checkout=checkout, commit=commit, repo=lock["catalog"]["repo"],
+                ref=lock["catalog"].get("ref"), project=lock["project"],
+                resolved={e["id"]: e["via"] for e in lock["skills"]}, targets=lock["targets"],
+                max_descriptions=lock["budget"]["max_descriptions"], config_hash=lock["config_hash"],
+                blocks=[], warnings=[], pack_hashes={p["id"]: p["hash"] for p in lock["packs"]})
+        except (SyncError, library.LibraryError) as exc:
+            return [f"cannot verify the lock against the library at {lock['catalog']['commit'][:12]}: {exc}"]
+        expected = {rel: sha256_bytes(data) for rel, data in desired.files.items()
+                    if rel.startswith(SKILLS_DIR + "/")}
+        claimed = {g["path"]: g["hash"] for g in lock["generated"] if g["path"].startswith(SKILLS_DIR + "/")}
+        for rel in sorted(set(expected) | set(claimed)):
+            if expected.get(rel) != claimed.get(rel):
+                problems.append(f"'{rel}' is not what the library at {commit[:12]} generates")
+        return problems
+    return verify
+
+
 def plan_project_sync(project: Path, *, source: str | None = None, ref: str | None = None,
                       commit: str | None = None, home: Path | None = None,
                       adopt=frozenset(), approve_overwrite=frozenset()) -> tuple[Plan, Context]:
@@ -71,20 +97,34 @@ def plan_project_sync(project: Path, *, source: str | None = None, ref: str | No
         targets=config["targets"],
         max_descriptions=config.get("budget", {}).get("max_descriptions", v.DEFAULT_MAX_DESCRIPTIONS),
         config_hash=sha256_file(project / CONFIG_FILE), blocks=blocks, warnings=warnings)
-    plan = plan_sync(project, desired, home=home or Path.home(), library_source=ctx.source,
+    plan = plan_sync(project, desired, home=home or real_home(), library_source=ctx.source,
                      blocks=blocks, warnings=warnings, adopt=set(adopt),
-                     approve_overwrite=set(approve_overwrite))
+                     approve_overwrite=set(approve_overwrite),
+                     verify_lock=_lock_verifier(ctx.source, ctx.commit, ctx.checkout))
     return plan, ctx
 
 
-def apply_project_sync(project: Path, fingerprint: str, *, commit: str, source: str | None = None,
-                       home: Path | None = None, adopt=frozenset(), approve_overwrite=frozenset(),
-                       fault_hook=None) -> dict:
-    """Recompute the plan from scratch and apply it only if its fingerprint is the approved one."""
-    plan, ctx = plan_project_sync(project, source=source, commit=commit, home=home, adopt=adopt,
-                                  approve_overwrite=approve_overwrite)
-    return apply_plan(project, plan, fingerprint, fault_hook=fault_hook,
-                      checkout_catalog=ctx.catalog, config=ctx.config)
+def recover_project(project: Path, hook=None) -> str | None:
+    """Repair an interrupted sync/rollback (F2). Takes the project lock."""
+    if not (project / ".tareq").is_dir():
+        return None  # not a tareq project: nothing to recover, and do not create anything
+    with lock_mod.project_lock(project):
+        return txn.recover(project.resolve(), hook)
+
+
+def apply_project_sync(project: Path, approval: approval_mod.Approval, *, commit: str,
+                       source: str | None = None, home: Path | None = None,
+                       adopt=frozenset(), approve_overwrite=frozenset(), fault_hook=None) -> dict:
+    """Under the project lock: repair any interrupted transaction, recompute the plan from
+    scratch, and apply it only if its fingerprint equals the one `approval` is bound to.
+    Planning and writing happen under one lock, so nothing can change in between (F1)."""
+    approval_mod.check_shape(approval)  # fail before taking the lock or doing any work
+    with lock_mod.project_lock(project):
+        txn.recover(project.resolve(), fault_hook)
+        plan, ctx = plan_project_sync(project, source=source, commit=commit, home=home, adopt=adopt,
+                                      approve_overwrite=approve_overwrite)
+        return apply_plan(project, plan, approval, fault_hook=fault_hook,
+                          checkout_catalog=ctx.catalog, config=ctx.config)
 
 
 # --------------------------------------------------------------------------- rollback
@@ -100,6 +140,9 @@ def _lock_at(project: Path, rev: str) -> dict:
     issues = v.schema_issues("lock", lock, f"{rev}:{LOCK_FILE}")
     if issues:
         raise SyncError(f"lock at {rev} is not a valid version-2 lock: {issues[0].message}")
+    forged = v.check_lock_ownership(lock, f"{rev}:{LOCK_FILE}")
+    if forged:  # a rollback target from git history is untrusted input (F4)
+        raise SyncError(f"lock at {rev} makes forged ownership claims: {forged[0].message}")
     return lock
 
 
@@ -108,7 +151,13 @@ def plan_rollback(project: Path, rev: str, *, source: str | None = None,
     """Regenerate exactly the state recorded by the lock at `rev`. Touches only owned files
     and keys (R-18); never modifies .tareq/skills.yaml."""
     target = _lock_at(project, rev)
-    ctx = _context(project, source or target["catalog"]["repo"], None, target["catalog"]["commit"], None)
+    config = load_config(project)
+    trusted = config["catalog"]["repo"]
+    if source is None and target["catalog"]["repo"] != trusted:
+        raise SyncError(f"the lock at {rev} names library {target['catalog']['repo']!r}, which is not "
+                        f"the project's configured library {trusted!r}; pass --library explicitly "
+                        "if you trust it")
+    ctx = _context(project, source or trusted, None, target["catalog"]["commit"], config)
     blocks: list[str] = []
     warnings: list[str] = []
     desired = build_desired(
@@ -126,16 +175,20 @@ def plan_rollback(project: Path, rev: str, *, source: str | None = None,
         diff = sorted(set(produced.items()) ^ set(expected.items()))
         blocks.append(f"cannot reproduce the generated state of {rev} exactly "
                       f"({len(diff)} differing entries, e.g. {diff[0][0]})")
-    plan = plan_sync(project, desired, home=home or Path.home(), library_source=ctx.source,
-                     blocks=blocks, warnings=warnings, rollback_from=rev)
+    plan = plan_sync(project, desired, home=home or real_home(), library_source=ctx.source,
+                     blocks=blocks, warnings=warnings, rollback_from=rev,
+                     verify_lock=_lock_verifier(ctx.source, ctx.commit, ctx.checkout))
     return plan, ctx
 
 
-def apply_rollback(project: Path, rev: str, fingerprint: str, *, source: str | None = None,
-                   home: Path | None = None, fault_hook=None) -> dict:
-    plan, ctx = plan_rollback(project, rev, source=source, home=home)
-    return apply_plan(project, plan, fingerprint, fault_hook=fault_hook, checkout_catalog=ctx.catalog,
-                      config=None)
+def apply_rollback(project: Path, rev: str, approval: approval_mod.Approval, *,
+                   source: str | None = None, home: Path | None = None, fault_hook=None) -> dict:
+    approval_mod.check_shape(approval)
+    with lock_mod.project_lock(project):
+        txn.recover(project.resolve(), fault_hook)
+        plan, ctx = plan_rollback(project, rev, source=source, home=home)
+        return apply_plan(project, plan, approval, fault_hook=fault_hook,
+                          checkout_catalog=ctx.catalog, config=None)
 
 
 # --------------------------------------------------------------------------- doctor
@@ -143,10 +196,12 @@ def apply_rollback(project: Path, rev: str, fingerprint: str, *, source: str | N
 def doctor(project: Path, *, home: Path | None = None, source: str | None = None) -> list[v.Issue]:
     """Read-only health check of a client project."""
     project = project.resolve()
-    home = home or Path.home()
+    home = home or real_home()
     out: list[v.Issue] = []
     add = lambda sev, code, msg: out.append(v.Issue(sev, code, str(project), msg))  # noqa: E731
     blocks: list[str] = []
+    if txn.pending(project):
+        add("error", "txn-pending", "an interrupted sync/rollback left .tareq/.txn; run `tareq recover`")
     lock = read_lock(project, blocks)
     for b in blocks:
         add("error", "lock-invalid", b)
@@ -275,11 +330,60 @@ def add_skill(repo_root: Path, src: Path, *, skill_id: str, category: str, scope
 
 
 def add_note(project: Path, category: str, text: str) -> None:
-    """Append a categorized note or lesson to the project's history (capability 9, 12)."""
-    if not category.replace("-", "").isalnum():
-        raise SyncError("category must be alphanumeric with hyphens")
-    path = project / HISTORY_FILE
-    path.parent.mkdir(parents=True, exist_ok=True)
-    existing = path.read_text(encoding="utf-8") if path.is_file() else (TEMPLATES / "history.md").read_text()
-    stamp = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    path.write_text(existing + f"\n## {stamp} — note [{category}]\n\n{text.strip()}\n", encoding="utf-8")
+    """Append a categorized note or lesson to the project's history (capability 9, 12).
+    Locked (F1), recovers any interrupted transaction first so a note is never lost to a
+    restore, refuses symlinks (F5), and appends without rewriting the file."""
+    import os
+    import re
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*", category or ""):
+        raise SyncError("category must be ASCII letters, digits, and hyphens")
+    if len(text) > 20000:
+        raise SyncError("note is too long (max 20000 characters)")
+    project = project.resolve()
+    with lock_mod.project_lock(project):
+        txn.recover(project)
+        try:
+            dest = safe_dest(project, HISTORY_FILE)
+        except UnsafePathError as exc:
+            raise SyncError(str(exc)) from exc
+        try:
+            fd = os.open(dest, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW
+                         | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0), 0o644)  # NONBLOCK: a FIFO must not hang us
+        except OSError as exc:
+            raise SyncError(f"cannot open {HISTORY_FILE} safely: {exc.strerror}") from exc
+        try:
+            import stat
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise SyncError(f"{HISTORY_FILE} is not a regular file")
+            stamp = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            entry = f"\n## {stamp} - note [{category}]\n\n{text.strip()}\n"
+            if os.fstat(fd).st_size == 0:
+                entry = (TEMPLATES / "history.md").read_text(encoding="utf-8") + entry
+            os.write(fd, entry.encode("utf-8"))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
+def init_config(project: Path, content: str) -> None:
+    """Create `.tareq/skills.yaml` only if absent (F5). Locked; never follows a symlink,
+    including a dangling one, and never overwrites."""
+    import os
+    project = project.resolve()
+    with lock_mod.project_lock(project):
+        try:
+            dest = safe_dest(project, CONFIG_FILE)
+        except UnsafePathError as exc:
+            raise SyncError(str(exc)) from exc
+        try:
+            fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+                         | getattr(os, "O_CLOEXEC", 0), 0o644)
+        except FileExistsError as exc:
+            raise SyncError(f"{CONFIG_FILE} already exists; not modified") from exc
+        except OSError as exc:
+            raise SyncError(f"cannot create {CONFIG_FILE} safely: {exc.strerror}") from exc
+        try:
+            os.write(fd, content.encode("utf-8"))
+            os.fsync(fd)
+        finally:
+            os.close(fd)

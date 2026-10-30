@@ -4,7 +4,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import pwd
 import re
+import tempfile
 from pathlib import Path
 
 # Directories never scanned for stack detection.
@@ -103,3 +105,66 @@ def load_json_object(path: Path) -> dict:
 
 def dump_json(obj: dict) -> bytes:
     return (json.dumps(obj, indent=2, ensure_ascii=False) + "\n").encode()
+
+
+def real_home() -> Path:
+    """The invoking user's home directory from the passwd database, never from $HOME, so an
+    environment variable cannot hide personal skills from collision detection (R-13)."""
+    return Path(pwd.getpwuid(os.getuid()).pw_dir)
+
+
+def fsync_dir(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def write_durable(dest: Path, data: bytes, *, mode: int | None = None, hook=None) -> None:
+    """Crash-safe replace: temp file in the same directory, fsync, rename, fsync directory.
+    `os.replace` never follows a symlink at `dest`; it replaces the link itself."""
+    parent = dest.parent
+    if mode is None:
+        try:
+            mode = dest.stat().st_mode & 0o7777 if dest.is_file() and not dest.is_symlink() else None
+        except OSError:
+            mode = None
+    if mode is None:
+        umask = os.umask(0)
+        os.umask(umask)
+        mode = 0o666 & ~umask
+    fd, tmp = tempfile.mkstemp(dir=parent, prefix=".tareq-tmp-")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, mode)
+        if hook:
+            hook("write:tmp")
+        os.replace(tmp, dest)
+        fsync_dir(parent)
+        if hook:
+            hook("write:replaced")
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def mkdirs_durable(project: Path, directory: Path) -> list[Path]:
+    """Create missing directories below `project` (never through a symlink) and fsync each
+    new entry's parent. Returns the directories created, shallowest first."""
+    missing = []
+    d = directory
+    while d != project and not d.exists():
+        if d.is_symlink():
+            raise UnsafePathError(f"refusing to create through symlink: {d}")
+        missing.append(d)
+        d = d.parent
+    created = []
+    for d in reversed(missing):
+        d.mkdir()
+        created.append(d)
+        fsync_dir(d.parent)
+    return created

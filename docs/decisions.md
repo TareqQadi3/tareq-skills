@@ -32,6 +32,8 @@ Source of truth for owner decisions. Section references (§) point to
 | D-23 | License for authored skills (O-14): skills authored inside this repository are exempt from the external-license requirement (D-15) and record their source as internal/authored (`source.type: local`). The exemption never applies to imported third-party skills. Security and compatibility reviews remain mandatory. | 2026-10-30 | Owner approval |
 | D-24 | Additional sync safeguards: rollback touches only files and settings provably generated and owned by tareq-skills; sync is atomic (any failed validation or write restores the exact pre-sync state); approval is bound to an immutable plan fingerprint (source commit, file hashes, destination state, planned operations), and any change invalidates it. See R-18…R-20. | 2026-10-30 | Owner approval |
 | D-25 | M3 is authorized to start after the owner merges PR #3. | 2026-10-30 | Owner approval |
+| D-26 | Approval is enforced by the tool itself (owner decision, M3 review, Option A): `--apply` requires a confirmation typed by a person on the controlling terminal, bound to the recomputed plan fingerprint; where none can be established it fails closed. A fingerprint is never proof of approval; no flag, environment variable, or alternate command skips the check; agent settings may add a layer but are not the enforcement. Supported and unsupported environments are documented in `architecture/approval.md`. | 2026-10-30 | M3 review |
+| D-27 | M3 review fixes F1-F6 approved: project lock, durable journal with crash recovery, no CLI `--home`, strict ownership allowlist with library corroboration, no symlink writes in `note`/`select --init`, and corrected R-19 wording (caught-exception rollback vs crash recovery vs power loss NOT TESTED). | 2026-10-30 | M3 review |
 
 ## Open
 
@@ -41,3 +43,4 @@ Source of truth for owner decisions. Section references (§) point to
 | O-07 | Fate of the 8 requested external repos (emilkowalski, impeccable, taste-skill, roast-room, marketingskills, instagram, youtube, arena-skill-16) and figma / playwright MCP. | Review one by one before any import; deferred until after the SMMS pilot (D-18). | M6 |
 | O-08 | Browser, testing, and security tooling choices. | Evaluate step by step. | M6 |
 | O-10 | SMMS skills cleanup (what to disable/merge). | Separate SMMS-track decision after M5. | M5 |
+| O-15 | Out-of-band approval channel for the owner's iPhone + cloud-session environment, which cannot provide a controlling terminal (so apply is refused there). Options in `architecture/approval.md`. | Run `--apply` on a computer the owner controls for now; decide a remote channel before M5. | M5 |

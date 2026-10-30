@@ -4,19 +4,20 @@ Safeguards (docs/architecture/adapters.md):
   R-12 never overwrite/delete files or settings the lock does not record as owned
   R-13 name collisions block the plan
   R-14 exact library commit; source hashes verified before copy, outputs after write
-  R-15 dry-run summary first; apply only with that plan's fingerprint
+  R-15 dry-run summary first; apply needs an Approval bound to that plan's fingerprint
   R-16 disabled skills stay in the catalog; manual files are never touched
   R-18 removal only of owned, unmodified files/keys; modified ones are left and reported
-  R-19 atomic apply: any failure restores the exact pre-sync state
-  R-20 fingerprint = library commit + source hashes + destination state + operations
+  R-19 caught failures roll back at once; an interrupted run is repaired by journal
+       recovery (txn.py) - see docs/architecture/manager.md for the exact guarantee
+  R-20 fingerprint = library commit + source hashes + destination state + environment +
+       operations
+  D-26 apply is refused unless the Approval comes from an accepted channel (approval.py)
 """
 from __future__ import annotations
 
 import datetime as _dt
 import os
-import shutil
 import sys
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -25,28 +26,23 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import validate_catalog as v  # noqa: E402
 
-from . import fsutil  # noqa: E402
+from . import approval as approval_mod, fsutil, lock as lock_mod, txn  # noqa: E402
 from .fsutil import UnsafePathError, canonical_hash, path_state, safe_dest, sha256_bytes  # noqa: E402
-from .library import cache_root  # noqa: E402
 
 TOOL_ROOT = Path(__file__).resolve().parent.parent.parent
 TEMPLATES = TOOL_ROOT / "templates"
 
-SKILLS_DIR = ".claude/skills"
-RULES_FILE = ".claude/rules/tareq-skills.md"
-CLAUDE_SETTINGS = ".claude/settings.json"
-OPENCODE_SETTINGS = "opencode.json"
-LOCK_FILE = ".tareq/skills.lock"
+# Ownership rules live in validate_catalog (shared with `validate_catalog.py --project-dir`).
+SKILLS_DIR = v.SKILLS_DIR
+RULES_FILE = v.RULES_FILE
+GITIGNORE_FILE = v.GITIGNORE_FILE
+CLAUDE_SETTINGS = v.CLAUDE_SETTINGS
+OPENCODE_SETTINGS = v.OPENCODE_SETTINGS
+LOCK_FILE = v.LOCK_REL
+HISTORY_FILE = v.HISTORY_REL
 CONFIG_FILE = ".tareq/skills.yaml"
-HISTORY_FILE = ".tareq/history.md"
 OVERLAY_FRONTMATTER = ("description", "when_to_use", "paths")
 OPENCODE_DESCRIPTION_MAX = 1024
-_ID = r"[a-z0-9]+(?:-[a-z0-9]+)*"
-# Only these paths can ever be recorded as tareq-owned; a lock naming anything else
-# (e.g. CLAUDE.md) is rejected, so a crafted lock cannot make sync delete owner files.
-import re as _re
-OWNED_PATH_RE = _re.compile(rf"^(?:\.claude/skills/{_ID}/.+|\.claude/rules/tareq-skills\.md|"
-                            rf"\.tareq/SKILLS-{_ID}\.md)$")
 _MISSING = object()
 
 
@@ -68,9 +64,7 @@ class Desired:
 
 def mapping_hash(files: dict[str, bytes]) -> str:
     """Same algorithm as validate_catalog.content_hash, over an in-memory mapping."""
-    import hashlib
-    lines = [f"{rel}\0{hashlib.sha256(data).hexdigest()}\n" for rel, data in sorted(files.items())]
-    return "sha256:" + hashlib.sha256("".join(lines).encode()).hexdigest()
+    return v.mapping_hash_of({rel: sha256_bytes(data) for rel, data in files.items()})
 
 
 def _skill_files(src: Path) -> dict[str, bytes]:
@@ -191,6 +185,7 @@ def build_desired(*, checkout: Path, commit: str, repo: str, ref: str | None, pr
         register_links.append(f"`{rel}`")
     d.files[RULES_FILE] = _render("tareq-skills.rules.md", commit=commit[:12],
                                   registers=", ".join(register_links) or "none")
+    d.files[GITIGNORE_FILE] = _render("tareq-gitignore")
 
     used_packs = set()
     for e in d.skills:
@@ -245,6 +240,11 @@ def read_lock(project: Path, blocks: list[str]) -> dict | None:
         blocks.append(f"{LOCK_FILE} is not a valid version-2 lock; ownership cannot be "
                       f"established: {issues[0].message}")
         return None
+    forged = v.check_lock_ownership(lock, LOCK_FILE)
+    if forged:  # F4: a lock may only claim what tareq-skills itself generates
+        blocks += [f"forged or corrupt ownership claim in {LOCK_FILE}: {i.message} (R-12)"
+                   for i in forged]
+        return None
     return lock
 
 
@@ -276,17 +276,21 @@ def _remove(obj: dict, key: tuple) -> None:
 
 
 def _collisions(project: Path, home: Path, skill_ids: list[str], owned: dict[str, str],
-                blocks: list[str], warnings: list[str], targets: list[str]) -> None:
-    """R-09 / R-13: any collision blocks the plan."""
+                blocks: list[str], warnings: list[str], targets: list[str]) -> list[str]:
+    """R-09 / R-13: any collision blocks the plan. Returns the sorted list of collision
+    probes found, which is part of the plan fingerprint (R-20)."""
+    probe: list[str] = []
     personal = [home / ".claude/skills", home / ".config/opencode/skills", home / ".agents/skills"]
     project_other = [project / ".opencode/skills", project / ".agents/skills"]
     for sid in skill_ids:
         for base in personal:
             if (base / sid).exists() or (base / sid).is_symlink():
+                probe.append(f"personal:{base.relative_to(home).as_posix()}/{sid}")
                 blocks.append(f"collision: personal skill '{base / sid}' has the same name as "
                               f"'{sid}' (it would shadow or duplicate the project copy)")
         for base in project_other:
             if (base / sid).exists():
+                probe.append(f"project:{(base / sid).relative_to(project).as_posix()}")
                 blocks.append(f"collision: '{(base / sid).relative_to(project)}' duplicates '{sid}' "
                               "(OpenCode requires unique names)")
     skills_root = project / SKILLS_DIR
@@ -300,24 +304,36 @@ def _collisions(project: Path, home: Path, skill_ids: list[str], owned: dict[str
             except (OSError, UnicodeDecodeError, v.FrontmatterError):
                 continue
             if fm.get("name") in skill_ids and fm.get("name") != entry.name:
+                probe.append(f"manual:{entry.name}={fm.get('name')}")
                 blocks.append(f"collision: manual skill '{SKILLS_DIR}/{entry.name}' declares "
                               f"name '{fm.get('name')}'")
     if "opencode" in targets:
         for var in ("OPENCODE_DISABLE_CLAUDE_CODE", "OPENCODE_DISABLE_CLAUDE_CODE_SKILLS"):
             if os.environ.get(var):
+                probe.append(f"env:{var}")
                 warnings.append(f"{var} is set: OpenCode will not read {SKILLS_DIR}")
+    return sorted(probe)
 
 
 def plan_sync(project: Path, desired: Desired, *, home: Path, library_source: str,
               blocks: list[str], warnings: list[str], adopt: set[str] = frozenset(),
-              approve_overwrite: set[str] = frozenset(), rollback_from: str | None = None) -> Plan:
+              approve_overwrite: set[str] = frozenset(), rollback_from: str | None = None,
+              verify_lock=None) -> Plan:
+    """`verify_lock(lock) -> list[str]` corroborates the existing lock's skill files against
+    the library at the lock's commit (F4); problems become blocks."""
     project = project.resolve()
+    if txn.pending(project):
+        blocks.append("an interrupted sync/rollback left a transaction in .tareq/.txn; "
+                      "run `tareq recover` first")
     lock = read_lock(project, blocks)
+    if lock is not None and verify_lock is not None:
+        problems = verify_lock(lock)
+        if problems:
+            blocks += [f"lock ownership not corroborated by the library: {p} (R-12)" for p in problems]
+            lock = None
     owned: dict[str, str] = {g["path"]: g["hash"] for g in (lock or {}).get("generated", [])}
     for rel in sorted(owned):
         try:
-            if not OWNED_PATH_RE.match(rel):
-                raise UnsafePathError(f"lock claims ownership of '{rel}', which tareq never generates")
             safe_dest(project, rel)
         except UnsafePathError as exc:
             blocks.append(f"{exc} (R-12)")
@@ -328,7 +344,7 @@ def plan_sync(project: Path, desired: Desired, *, home: Path, library_source: st
     destination: dict[str, str | None] = {}
     skill_ids = [e["id"] for e in desired.skills]
     targets = desired.lock_base.get("targets", [])
-    _collisions(project, home, skill_ids, owned, blocks, warnings, targets)
+    environment = _collisions(project, home, skill_ids, owned, blocks, warnings, targets)
 
     def state(rel: str):
         if rel not in destination:
@@ -465,14 +481,18 @@ def plan_sync(project: Path, desired: Desired, *, home: Path, library_source: st
             pass
         elif cur_state is None and not (kept_keys or kept_items):
             pass
-        elif result == {} and created:
+        elif result == {} and created and prev.get("file_hash") == cur_state:
             ops.append({"op": "delete", "path": file, "hash": cur_state, "settings": changes})
         else:
             data = fsutil.dump_json(result)
             ops.append({"op": "write", "path": file, "hash": sha256_bytes(data), "settings": changes})
             desired.files.setdefault(file, data)
         if kept_keys or kept_items:
-            new_settings.append({"file": file, "created": created,
+            final = desired.files.get(file)
+            wrote = any(o["path"] == file and o["op"] == "write" for o in ops)
+            file_hash = sha256_bytes(final) if wrote and final is not None else (
+                prev.get("file_hash") or cur_state)  # keep "as we last wrote it" if unchanged
+            new_settings.append({"file": file, "created": created, "file_hash": file_hash,
                                  "keys": [{"key": list(k), "value": val} for k, val in sorted(kept_keys.items())],
                                  "list_items": [{"key": list(k), "value": val} for k, val in sorted(kept_items)]})
     desired.lock_base["settings"] = new_settings
@@ -489,6 +509,7 @@ def plan_sync(project: Path, desired: Desired, *, home: Path, library_source: st
         "config_hash": desired.lock_base["config_hash"],
         "source_hashes": desired.source_hashes,
         "destination": destination,
+        "environment": environment,
         "operations": ops,
         "lock": {k: val for k, val in desired.lock_base.items()},
     })
@@ -536,86 +557,60 @@ def summarize(plan: Plan, previous_lock: dict | None) -> str:
     return "\n".join(lines)
 
 
-# --------------------------------------------------------------------------- apply (atomic)
+# --------------------------------------------------------------------------- apply (journaled)
 
-def apply_plan(project: Path, plan: Plan, approved_fingerprint: str, *,
+def touched_paths(plan: Plan) -> list[str]:
+    """Every path an apply may modify: write/delete operations plus the lock and history."""
+    paths = {op["path"] for op in plan.operations if op["op"] in ("write", "delete")}
+    paths.update({LOCK_FILE, HISTORY_FILE})
+    return sorted(paths)
+
+
+def apply_plan(project: Path, plan: Plan, approval: approval_mod.Approval, *,
                fault_hook=None, checkout_catalog: v.Catalog | None = None,
                config: dict | None = None) -> dict:
-    """Apply `plan` only if it is unblocked and its fingerprint equals the approved one
-    (R-15, R-20). Any failure restores the exact pre-sync state (R-19)."""
+    """Apply `plan` only with an Approval from an accepted channel bound to exactly this
+    plan's fingerprint (R-15, R-20, D-26), while holding the project lock (F1).
+
+    Failures that Python can catch roll back immediately from the journal. A process kill or
+    machine interruption leaves the journal on disk and the next locked command (or
+    `tareq recover`) restores the exact pre-sync state (F2, R-19)."""
     project = project.resolve()
+    lock_mod.assert_held(project)
+    approval_mod.require(approval, plan.fingerprint)
     if not plan.ok:
         raise SyncError("plan is blocked:\n  " + "\n  ".join(plan.blocks))
-    if plan.fingerprint != approved_fingerprint:
-        raise SyncError("approval does not match the current plan fingerprint; the source, "
-                        "destination, or operations changed. Create a new plan and approve it (R-20).")
-    touched = sorted(plan.destination)
-    txn = Path(tempfile.mkdtemp(prefix="txn-", dir=_txn_root()))
-    backups: dict[str, Path | None] = {}
-    created_dirs: list[Path] = []
+    tx = txn.Transaction(project, touched_paths(plan), plan.fingerprint, fault_hook)
     try:
-        for rel in touched:  # snapshot (R-19)
-            src = project / rel
-            if src.is_file() and not src.is_symlink():
-                dst = txn / "files" / rel
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src, dst)
-                backups[rel] = dst
-            else:
-                backups[rel] = None
+        tx.begin(plan.destination)
         for index, op in enumerate(plan.operations):
-            if fault_hook:
-                fault_hook(index, op)
-            _execute(project, op, plan, created_dirs)
+            tx.step(f"op:{index}:before")
+            _execute(project, op, plan, tx, approval)
+            tx.step(f"op:{index}:after")
+        tx.step("verify:before")
         _verify_after_write(project, plan, checkout_catalog, config)
+        tx.step("verify:after")
+        tx.commit()
     except BaseException as exc:
-        _restore(project, plan, backups, created_dirs)
-        shutil.rmtree(txn, ignore_errors=True)
-        raise SyncError(f"sync failed and the project was restored to its exact pre-sync state: {exc}") from exc
-    shutil.rmtree(txn, ignore_errors=True)
+        outcome = tx.abort()
+        if outcome == "committed":  # the failure struck after the durable commit point
+            return plan.desired.lock_base
+        if not isinstance(exc, Exception):  # KeyboardInterrupt/SystemExit: restored, then propagate
+            raise
+        raise SyncError("sync failed and the project was restored to its exact pre-sync "
+                        f"state: {exc}") from exc
     return plan.desired.lock_base
 
 
-def _txn_root() -> Path:
-    root = cache_root() / "transactions"
-    root.mkdir(parents=True, exist_ok=True)
-    return root
-
-
-def _mkdirs(project: Path, path: Path, created: list[Path]) -> None:
-    missing = []
-    p = path
-    while not p.exists() and p != project:
-        missing.append(p)
-        p = p.parent
-    for d in reversed(missing):
-        d.mkdir()
-        created.append(d)
-
-
-def _write_atomic(project: Path, rel: str, data: bytes, created: list[Path]) -> None:
-    dest = safe_dest(project, rel)
-    _mkdirs(project, dest.parent, created)
-    fd, tmp = tempfile.mkstemp(dir=dest.parent, prefix=".tareq-tmp-")
-    try:
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(data)
-        os.replace(tmp, dest)
-    finally:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-
-
-def _execute(project: Path, op: dict, plan: Plan, created: list[Path]) -> None:
+def _execute(project: Path, op: dict, plan: Plan, tx: txn.Transaction,
+             approval: approval_mod.Approval) -> None:
     kind = op["op"]
     if kind == "write":
-        _write_atomic(project, op["path"], plan.desired.files[op["path"]], created)
+        tx.write(op["path"], plan.desired.files[op["path"]])
     elif kind == "delete":
-        dest = safe_dest(project, op["path"])
         if path_state(project, op["path"]) != op["hash"]:
             raise SyncError(f"'{op['path']}' changed after planning")
-        dest.unlink()
-        _prune_empty(project, dest.parent)
+        tx.delete(op["path"])
     elif kind == "adopt":
         if path_state(project, op["path"]) != op["hash"]:
             raise SyncError(f"'{op['path']}' changed after planning")
@@ -623,39 +618,35 @@ def _execute(project: Path, op: dict, plan: Plan, created: list[Path]) -> None:
         lock = dict(plan.desired.lock_base)
         lock["generated_at"] = _now()
         lock["plan_fingerprint"] = plan.fingerprint
+        lock["approval"] = {"channel": approval.channel, "approver": approval.approver,
+                            "at": approval.at}
         lock["generated"] = [{"path": rel, "hash": sha256_bytes(data)}
                              for rel, data in sorted(plan.desired.files.items())
-                             if rel not in (CLAUDE_SETTINGS, OPENCODE_SETTINGS)]
+                             if rel not in v.SETTINGS_FILES]
         order = ["lock_version", "generated_at", "project", "catalog", "config_hash", "budget",
-                 "targets", "packs", "skills", "generated", "settings", "plan_fingerprint", "rollback"]
+                 "targets", "packs", "skills", "generated", "settings", "plan_fingerprint",
+                 "approval", "rollback"]
         lock = {k: lock[k] for k in order if k in lock}
         header = "# Generated by tareq-skills. Do not edit; use the tareq-skill workflow.\n"
-        _write_atomic(project, LOCK_FILE,
-                      (header + yaml.safe_dump(lock, sort_keys=False, allow_unicode=True)).encode(), created)
+        tx.write(LOCK_FILE, (header + yaml.safe_dump(lock, sort_keys=False,
+                                                     allow_unicode=True)).encode())
     elif kind == "append_history":
         path = project / HISTORY_FILE
         existing = path.read_bytes() if path.is_file() else (TEMPLATES / "history.md").read_bytes()
         lb = plan.desired.lock_base
         title = "rollback" if lb.get("rollback") else "sync"
-        entry = (f"\n## {_now()} — {title}\n\n"
+        entry = (f"\n## {_now()} - {title}\n\n"
                  f"- Library commit: `{lb['catalog']['commit']}`\n"
                  f"- Plan fingerprint: `{plan.fingerprint}`\n"
+                 f"- Approved by: {approval.approver} via {approval.channel} at {approval.at}\n"
                  f"- Skills: {', '.join(e['id'] for e in lb['skills']) or 'none'}\n")
         if lb.get("rollback"):
             entry += f"- Rolled back to: `{lb['rollback']['from_rev']}`\n"
         for r in plan.released:
             entry += f"- Left untouched: {r}\n"
-        _write_atomic(project, HISTORY_FILE, existing + entry.encode(), created)
+        tx.write(HISTORY_FILE, existing + entry.encode())
     else:
         raise SyncError(f"unknown operation {kind}")
-
-
-def _prune_empty(project: Path, directory: Path) -> None:
-    stop = (project / SKILLS_DIR).resolve()
-    d = directory
-    while d != stop and d != project and d.is_dir() and not any(d.iterdir()):
-        d.rmdir()
-        d = d.parent
 
 
 def _verify_after_write(project: Path, plan: Plan, cat: v.Catalog | None, config: dict | None) -> None:
@@ -671,33 +662,14 @@ def _verify_after_write(project: Path, plan: Plan, cat: v.Catalog | None, config
             raise SyncError(f"skill directory '{e['id']}' does not match its expected output hash")
     lock = v.load_yaml(project / LOCK_FILE)
     issues = v.schema_issues("lock", lock, LOCK_FILE)
-    if cat is not None:
+    if not issues:
+        issues = v.check_lock_ownership(lock, LOCK_FILE)
+    if cat is not None and not issues:
         issues = v.check_lock(lock, cat, LOCK_FILE, config,
                               project / CONFIG_FILE if config is not None else None)
     errors = [i for i in issues if i.severity == "error"]
     if errors:
         raise SyncError("written lock failed validation: " + "; ".join(map(str, errors)))
-
-
-def _restore(project: Path, plan: Plan, backups: dict[str, Path | None], created: list[Path]) -> None:
-    for rel, backup in backups.items():
-        dest = project / rel
-        if backup is not None:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(backup, dest)
-        elif dest.is_file() or dest.is_symlink():
-            dest.unlink()
-    for rel in plan.destination:  # temp files left by an interrupted write
-        parent = (project / rel).parent
-        if parent.is_dir():
-            for tmp in parent.glob(".tareq-tmp-*"):
-                tmp.unlink()
-    for d in reversed(created):
-        if d.is_dir() and not any(d.iterdir()):
-            d.rmdir()
-    mismatched = [rel for rel, st in plan.destination.items() if path_state(project, rel) != st]
-    if mismatched:
-        raise SyncError(f"restore incomplete for {mismatched}; backups kept under {_txn_root()}")
 
 
 def _now() -> str:

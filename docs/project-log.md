@@ -81,3 +81,29 @@ Meaningful milestones and results only. Newest last.
 - Defects found and fixed during M3: post-write verification covered only written files
   (now the whole desired state); failed intake left an empty category dir; a crafted lock
   could claim owner files; intake category/id path traversal.
+
+## 2026-10-30 — M3 security review fixes (PR #4)
+
+Independent review of PR #4 found six defects; owner approved fixes F1–F6 with tool-enforced
+approval (Option A, D-26, D-27).
+
+- Confirmed before fixing: lost update under concurrent runs; SIGKILL left a half-applied
+  project with no recovery; hidden `--home` bypassed the collision check; a forged lock could
+  delete user settings and a manual skill; `note`/`select --init` wrote through symlinks;
+  a fingerprint was copyable (not proof of approval).
+- Fixed: approval enforced by the tool on the controlling terminal and fail-closed elsewhere
+  (`approval.py`); per-project `flock` (F1); durable journal + recovery + `recover` command
+  (F2); `--home` removed, home from passwd, environment in the fingerprint, option
+  abbreviations off (F3); ownership allowlist with library corroboration, settings-file
+  deletion only if untouched, rollback trusts only the configured library (F4); symlink,
+  directory and FIFO refusal in `note`/`select --init` (F5); R-19 wording corrected (F6).
+- Found by the new tests and fixed: argparse prefix `--approve` matched `--approve-overwrite`;
+  prompt summary could carry terminal escape sequences; a terminal I/O error would have crashed
+  instead of denying; `recover` created `.tareq/` in a non-project directory.
+- Found by mutation checks and closed with new tests: journal path allowlist and the
+  destination component of the fingerprint were not independently tested.
+- Tests: 215 run (1 opt-in live test skipped by default). Live Claude Code check on the final
+  output: PASS. SIGKILL at all 48 transaction steps and at all 11 recovery steps: PASS.
+  Power-loss durability and a real person typing on a real device: NOT TESTED. OpenCode: NOT TESTED.
+- In this cloud session the real CLI refuses `--apply` (exit 2): the owner's iPhone + cloud
+  environment cannot approve a sync. Decision O-15.

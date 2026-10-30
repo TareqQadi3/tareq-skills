@@ -36,6 +36,9 @@ Full background: `docs/TAREQ-SKILLS-PROJECT-HANDOFF.md` (original handoff, do no
   `claude/*` branch and a Pull Request.
 - Do **not** commit, print, or expose secrets, tokens, credentials, or private data.
 - Do **not** deploy or make destructive changes.
+- Never apply, or try to apply, a sync or rollback on the owner's behalf. `--apply` needs the
+  owner's confirmation typed on a terminal; if it is refused (exit 2), report that and stop.
+  Do not emulate a terminal, unset `CLAUDECODE`, edit the tool, or look for another way around it.
 - Ask before any step that involves a payment or paid service.
 - Approval in one context does not extend to another.
 - Verify official documentation before building any adapter; never rely on memory for

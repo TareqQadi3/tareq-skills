@@ -541,6 +541,12 @@ def check_lock(lock: dict, cat: Catalog | None, where: str,
     if issues:
         return issues
     err = lambda code, msg: issues.append(Issue("error", code, where, msg))  # noqa: E731
+    issues += check_lock_ownership(lock, where)
+    channel = lock.get("approval", {}).get("channel")
+    if channel != "tty":
+        issues.append(Issue("warning", "approval-channel", where,
+                            "lock has no terminal approval record" if channel is None else
+                            f"lock was approved through channel {channel!r}, not a terminal"))
     ids = [e["id"] for e in lock["skills"]]
     for dup in sorted({i for i in ids if ids.count(i) > 1}):
         err("duplicate-id", f"skill '{dup}' appears more than once")
@@ -625,6 +631,116 @@ def _pack_closure(pack_id: str, packs: dict, _seen: frozenset = frozenset()) -> 
         if inc not in _seen:
             out |= {inc} | _pack_closure(inc, packs, _seen | {pack_id})
     return out
+
+
+# --------------------------------------------------------------------------- ownership (F4)
+
+# Single source of truth for what tareq-skills is ever allowed to claim, write, or remove in
+# a client project. A lock that claims anything else is forged or corrupt and is rejected.
+_SKILL_ID = r"[a-z0-9]+(?:-[a-z0-9]+)*"
+SKILLS_DIR = ".claude/skills"
+RULES_FILE = ".claude/rules/tareq-skills.md"
+GITIGNORE_FILE = ".tareq/.gitignore"
+LOCK_REL = ".tareq/skills.lock"
+HISTORY_REL = ".tareq/history.md"
+CLAUDE_SETTINGS = ".claude/settings.json"
+OPENCODE_SETTINGS = "opencode.json"
+SETTINGS_FILES = (CLAUDE_SETTINGS, OPENCODE_SETTINGS)
+MANUAL_CLAUDE_VALUE = "user-invocable-only"
+MANUAL_OPENCODE_VALUE = "ask"
+_GENERATED_RE = re.compile(
+    rf"^(?:{re.escape(SKILLS_DIR)}/({_SKILL_ID})/.+|{re.escape(RULES_FILE)}|"
+    rf"\.tareq/SKILLS-{_SKILL_ID}\.md|{re.escape(GITIGNORE_FILE)})$")
+
+
+def clean_segments(rel: str) -> bool:
+    """True for a normalized project-relative posix path: no empty/'.'/'..' segments, no
+    backslashes or NULs."""
+    if not rel or rel.startswith("/") or "\\" in rel or "\x00" in rel:
+        return False
+    return all(part not in ("", ".", "..") for part in rel.split("/"))
+
+
+def is_generated_path(rel: str) -> bool:
+    """Paths tareq-skills may ever record as generated (and therefore own)."""
+    return clean_segments(rel) and _GENERATED_RE.match(rel) is not None
+
+
+def owned_skill_id(rel: str) -> str | None:
+    m = _GENERATED_RE.match(rel) if clean_segments(rel) else None
+    return m.group(1) if m else None
+
+
+def is_touchable_path(rel: str) -> bool:
+    """Every path a sync/rollback transaction may write, back up, or delete."""
+    return is_generated_path(rel) or rel in (LOCK_REL, HISTORY_REL, *SETTINGS_FILES)
+
+
+def mapping_hash_of(file_hashes: dict[str, str]) -> str:
+    """Directory hash from {relative path: 'sha256:<hex>'} (same algorithm as content_hash)."""
+    lines = [f"{rel}\0{h.split(':', 1)[1]}\n" for rel, h in sorted(file_hashes.items())]
+    return "sha256:" + hashlib.sha256("".join(lines).encode()).hexdigest()
+
+
+def owned_key_allowed(file: str, key: tuple, value, skill_ids: set[str]) -> bool:
+    if file == CLAUDE_SETTINGS:
+        return (len(key) == 2 and key[0] == "skillOverrides" and key[1] in skill_ids
+                and value == MANUAL_CLAUDE_VALUE)
+    if file == OPENCODE_SETTINGS:
+        return (len(key) == 3 and key[:2] == ("permission", "skill") and key[2] in skill_ids
+                and value == MANUAL_OPENCODE_VALUE)
+    return False
+
+
+def owned_item_allowed(file: str, key: tuple, value) -> bool:
+    return file == OPENCODE_SETTINGS and key == ("instructions",) and value == RULES_FILE
+
+
+def check_lock_ownership(lock: dict, where: str) -> list[Issue]:
+    """Reject forged ownership claims in a schema-valid lock (R-12, R-18)."""
+    issues: list[Issue] = []
+    err = lambda code, msg: issues.append(Issue("error", code, where, msg))  # noqa: E731
+    ids = {e["id"] for e in lock["skills"]}
+    seen: set[str] = set()
+    per_skill: dict[str, dict[str, str]] = {}
+    for g in lock["generated"]:
+        path = g["path"]
+        if path in seen:
+            err("ownership-forged", f"'{path}' is listed twice in lock.generated")
+        seen.add(path)
+        if not is_generated_path(path):
+            err("ownership-forged", f"lock claims ownership of '{path}', which tareq-skills "
+                                    "never generates")
+            continue
+        sid = owned_skill_id(path)
+        if sid is None:
+            continue
+        if sid not in ids:
+            err("ownership-forged", f"'{path}' is in skill directory '{sid}', which is not "
+                                    "registered in lock.skills")
+            continue
+        per_skill.setdefault(sid, {})[path[len(SKILLS_DIR) + len(sid) + 2:]] = g["hash"]
+    for e in lock["skills"]:
+        mine = per_skill.get(e["id"], {})
+        if "SKILL.md" not in mine:
+            err("ownership-forged", f"lock skill '{e['id']}' has no generated SKILL.md")
+        elif mapping_hash_of(mine) != e["output_hash"]:
+            err("ownership-inconsistent",
+                f"output_hash of '{e['id']}' does not match its generated file hashes")
+    files_seen: set[str] = set()
+    for s in lock["settings"]:
+        if s["file"] in files_seen:
+            err("ownership-forged", f"settings file '{s['file']}' is listed twice")
+        files_seen.add(s["file"])
+        for k in s["keys"]:
+            if not owned_key_allowed(s["file"], tuple(k["key"]), k["value"], ids):
+                err("ownership-forged", f"lock claims ownership of {s['file']} key "
+                                        f"{'.'.join(k['key'])}, which tareq-skills never sets")
+        for i in s["list_items"]:
+            if not owned_item_allowed(s["file"], tuple(i["key"]), i["value"]):
+                err("ownership-forged", f"lock claims ownership of {s['file']} list "
+                                        f"{'.'.join(i['key'])}, which tareq-skills never edits")
+    return issues
 
 
 # --------------------------------------------------------------------------- CLI

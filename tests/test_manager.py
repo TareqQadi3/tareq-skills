@@ -15,16 +15,19 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bin"))
+sys.path.insert(0, str(ROOT / "tests"))
 
 import validate_catalog as v  # noqa: E402
-from tareqlib import library, scan, selection, workflow  # noqa: E402
+from tareqlib import approval as approval_mod, library, lock as lock_mod, scan, selection, workflow  # noqa: E402
+from tareqlib.approval import Approval, ApprovalError  # noqa: E402
 from tareqlib.fsutil import UnsafePathError, glob_to_regex, safe_dest, sha256_file  # noqa: E402
-from tareqlib.sync import SyncError  # noqa: E402
+from tareqlib.sync import SyncError, apply_plan  # noqa: E402
 
 FIX = ROOT / "tests" / "fixtures"
 GIT_ID = ["-c", "user.email=test@example.com", "-c", "user.name=test"]
@@ -35,13 +38,17 @@ def git(cwd: Path, *args: str) -> str:
                           text=True).stdout.strip()
 
 
+def txn_pending(project: Path) -> bool:
+    return (project / ".tareq/.txn").exists()
+
+
 def snapshot(root: Path) -> dict[str, str]:
     """Hash of every file (and symlink target) under root, excluding .git."""
     out = {}
     for p in sorted(root.rglob("*")):
         rel = p.relative_to(root).as_posix()
-        if rel == ".git" or rel.startswith(".git/"):
-            continue
+        if rel == ".git" or rel.startswith(".git/") or rel == ".tareq/.lock":
+            continue  # .tareq/.lock is the (empty) flock file, not project state
         if p.is_symlink():
             out[rel] = "symlink:" + os.readlink(p)
         elif p.is_file():
@@ -55,6 +62,10 @@ class Env(unittest.TestCase):
     """Temp library repo + project repo + HOME + cache."""
 
     def setUp(self):
+        # Library-level tests use a harness-only channel; the CLI accepts only a real terminal.
+        patcher = mock.patch.object(approval_mod, "ACCEPTED_CHANNELS", frozenset({"tty", "test-harness"}))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = Path(self._tmp.name)
         self._env = dict(os.environ)
@@ -102,11 +113,20 @@ class Env(unittest.TestCase):
                                              commit=commit or self.commit, home=self.home, **kw)
         return plan
 
+    def approval_for(self, fingerprint: str) -> Approval:
+        return Approval(fingerprint, "test-harness", "tester", "2026-10-30T00:00:00Z")
+
     def sync(self, commit=None, **kw):
         plan = self.plan(commit, **kw)
         self.assertTrue(plan.ok, plan.summary)
-        return workflow.apply_project_sync(self.proj, plan.fingerprint, commit=commit or self.commit,
-                                           source=str(self.lib), home=self.home, **kw)
+        return workflow.apply_project_sync(self.proj, self.approval_for(plan.fingerprint),
+                                           commit=commit or self.commit, source=str(self.lib),
+                                           home=self.home, **kw)
+
+    def apply_locked(self, plan, fingerprint=None, **kw):
+        """apply_plan with the project lock held, as the workflow functions do."""
+        with lock_mod.project_lock(self.proj):
+            return apply_plan(self.proj, plan, self.approval_for(fingerprint or plan.fingerprint), **kw)
 
     def proj_commit(self, message: str) -> str:
         git(self.proj, "add", "-A")
@@ -268,21 +288,23 @@ class TestSync(Env):
         self.edit_config(lambda d: d.update(targets=["claude-code"]))
         self.assertTrue(self.plan().ok)
 
-    def test_cli_plan_apply_roundtrip(self):
-        tareq = [sys.executable, str(ROOT / "bin" / "tareq")]
-        base = ["sync", "--project", str(self.proj), "--library", str(self.lib), "--home", str(self.home)]
-        r = subprocess.run(tareq + base + ["--commit", self.commit], capture_output=True, text=True)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        fp = next(line.split(": ")[1] for line in r.stdout.splitlines() if line.startswith("Plan fingerprint"))
-        bad = subprocess.run(tareq + base + ["--commit", self.commit, "--apply", "sha256:" + "0" * 64],
-                             capture_output=True, text=True)
-        self.assertEqual(bad.returncode, 1)
+    def test_cli_plan_apply_roundtrip_with_human_confirmation(self):
+        from ptyutil import run_cli
+        base = ["sync", "--project", self.proj, "--library", self.lib]
+        env = {**os.environ, "TAREQ_CACHE": os.environ["TAREQ_CACHE"]}
+        env.pop("CLAUDECODE", None)
+        plan = run_cli(base + ["--commit", self.commit], ctty=False, env=env)
+        self.assertEqual(plan.code, 0, plan.stderr)
+        fp = next(line.split(": ")[1] for line in plan.stdout.splitlines() if line.startswith("Plan fingerprint"))
+        stale = run_cli(base + ["--commit", self.commit, "--apply", "sha256:" + "0" * 64],
+                        answers=["x"], env=env)
+        self.assertEqual(stale.code, 1)
         self.assertFalse((self.proj / ".tareq/skills.lock").exists())
-        ok = subprocess.run(tareq + base + ["--commit", self.commit, "--apply", fp], capture_output=True, text=True)
-        self.assertEqual(ok.returncode, 0, ok.stderr)
-        doc = subprocess.run(tareq + ["doctor", "--project", str(self.proj), "--library", str(self.lib),
-                                      "--home", str(self.home)], capture_output=True, text=True)
-        self.assertEqual(doc.returncode, 0, doc.stdout)
+        ok = run_cli(base + ["--commit", self.commit, "--apply", fp],
+                     answers=[approval_mod.confirmation_phrase(fp)], env=env)
+        self.assertEqual(ok.code, 0, ok.stderr + ok.tty)
+        doc = run_cli(["doctor", "--project", self.proj, "--library", self.lib], ctty=False, env=env)
+        self.assertEqual(doc.code, 0, doc.stdout)
 
 
 # --------------------------------------------------------------------------- R-12 / R-16
@@ -389,7 +411,7 @@ class TestOwnership(Env):
         lock = v.load_yaml(lock_path)
         lock["generated"].append({"path": "CLAUDE.md", "hash": sha256_file(self.proj / "CLAUDE.md")})
         lock_path.write_text(yaml.safe_dump(lock, sort_keys=False))
-        self.assertBlocked(self.plan(), "tareq never generates")
+        self.assertBlocked(self.plan(), "never generates")
         self.assertTrue((self.proj / "CLAUDE.md").is_file())
 
     def test_safe_dest_rejects_symlink_escape(self):
@@ -430,8 +452,9 @@ class TestCollisions(Env):
     def test_collision_blocks_apply_even_with_old_fingerprint(self):
         fp = self.plan().fingerprint
         (self.home / ".claude/skills/demo-testing-base").mkdir(parents=True)
-        with self.assertRaises(SyncError):
-            workflow.apply_project_sync(self.proj, fp, commit=self.commit, source=str(self.lib), home=self.home)
+        with self.assertRaises(ApprovalError):
+            workflow.apply_project_sync(self.proj, self.approval_for(fp), commit=self.commit,
+                                        source=str(self.lib), home=self.home)
         self.assertFalse((self.proj / ".tareq/skills.lock").exists())
 
     def test_opencode_disable_env_warns(self):
@@ -461,12 +484,11 @@ class TestHashesAndPinning(Env):
         before = snapshot(self.proj)
         plan = self.plan()
 
-        def corrupt(index, op):
-            if op["op"] == "write_lock":
+        def corrupt(step):
+            if step == "verify:before":
                 (self.proj / ".claude/skills/demo-testing-base/SKILL.md").write_text("corrupted")
         with self.assertRaises(SyncError) as ctx:
-            from tareqlib.sync import apply_plan
-            apply_plan(self.proj, plan, plan.fingerprint, fault_hook=corrupt)
+            self.apply_locked(plan, fault_hook=corrupt)
         self.assertIn("hash mismatch", str(ctx.exception))
         self.assertEqual(snapshot(self.proj), before)
 
@@ -484,15 +506,14 @@ class TestApprovalFingerprint(Env):
     def test_r15_blocked_plan_cannot_be_applied(self):
         (self.home / ".claude/skills/demo-testing-base").mkdir(parents=True)
         plan = self.plan()
-        from tareqlib.sync import apply_plan
         with self.assertRaises(SyncError):
-            apply_plan(self.proj, plan, plan.fingerprint)
+            self.apply_locked(plan)
 
     def test_r20_wrong_fingerprint_refused(self):
         before = snapshot(self.proj)
-        with self.assertRaises(SyncError) as ctx:
-            workflow.apply_project_sync(self.proj, "sha256:" + "0" * 64, commit=self.commit,
-                                        source=str(self.lib), home=self.home)
+        with self.assertRaises(ApprovalError) as ctx:
+            workflow.apply_project_sync(self.proj, self.approval_for("sha256:" + "0" * 64),
+                                        commit=self.commit, source=str(self.lib), home=self.home)
         self.assertIn("R-20", str(ctx.exception))
         self.assertEqual(snapshot(self.proj), before)
 
@@ -500,16 +521,18 @@ class TestApprovalFingerprint(Env):
         fp = self.plan().fingerprint
         (self.proj / "opencode.json").write_text(json.dumps({"theme": "dark"}))
         self.assertNotEqual(self.plan().fingerprint, fp)
-        with self.assertRaises(SyncError):
-            workflow.apply_project_sync(self.proj, fp, commit=self.commit, source=str(self.lib), home=self.home)
+        with self.assertRaises(ApprovalError):
+            workflow.apply_project_sync(self.proj, self.approval_for(fp), commit=self.commit,
+                                        source=str(self.lib), home=self.home)
 
     def test_r20_fingerprint_binds_source_commit(self):
         fp = self.plan().fingerprint
         (self.lib / "README.md").write_text("new commit, same skills")
         newer = self.lib_commit("readme")
         self.assertNotEqual(self.plan(newer).fingerprint, fp)
-        with self.assertRaises(SyncError):
-            workflow.apply_project_sync(self.proj, fp, commit=newer, source=str(self.lib), home=self.home)
+        with self.assertRaises(ApprovalError):
+            workflow.apply_project_sync(self.proj, self.approval_for(fp), commit=newer,
+                                        source=str(self.lib), home=self.home)
 
     def test_r20_fingerprint_binds_operations_and_config(self):
         fp = self.plan().fingerprint
@@ -542,31 +565,61 @@ class TestAtomicity(Env):
         self.assertTrue({"write", "delete", "write_lock", "append_history"} <= kinds, kinds)
         return plan
 
-    def test_failure_at_every_step_restores_exact_state(self):
-        from tareqlib.sync import apply_plan
+    def _record_steps(self, plan):
+        """Step names of a successful apply, taken from a throwaway copy of the project."""
+        probe = self.tmp / "probe-project"
+        shutil.copytree(self.proj, probe)
+        steps = []
+        probe_plan, _ = workflow.plan_project_sync(probe, source=str(self.lib), commit=self.commit,
+                                                   home=self.home)
+        self.assertEqual(probe_plan.fingerprint, plan.fingerprint)
+        with lock_mod.project_lock(probe):
+            apply_plan(probe, probe_plan, self.approval_for(probe_plan.fingerprint),
+                       fault_hook=steps.append)
+        shutil.rmtree(probe)
+        return steps
+
+    def test_caught_failure_at_every_step_restores_exact_state(self):
         plan = self._second_sync_plan()
         before = snapshot(self.proj)
-        for step in range(len(plan.operations) + 1):
-            with self.subTest(step=step):
-                def fault(index, op, step=step):
-                    if index == step:
-                        raise OSError(f"injected failure at step {step}")
-                if step == len(plan.operations):  # fail during post-write verification
-                    def fault(index, op):  # noqa: F811
-                        if op["op"] == "append_history":
-                            (self.proj / ".tareq/SKILLS-testing.md").write_text("broken")
+        steps = self._record_steps(plan)
+        self.assertGreater(len(steps), 20, steps)
+        marker = steps.index("commit:marker")
+        for index, name in enumerate(steps[:marker]):  # every step before the commit point
+            with self.subTest(step=name):
+                counter = {"n": -1}
+
+                def fault(step, index=index, counter=counter):
+                    counter["n"] += 1
+                    if counter["n"] == index:
+                        raise OSError(f"injected failure at {step}")
                 with self.assertRaises(SyncError):
-                    apply_plan(self.proj, self.plan(), plan.fingerprint, fault_hook=fault)
+                    self.apply_locked(self.plan(), fault_hook=fault)
                 self.assertEqual(snapshot(self.proj), before)
-        lock = workflow.apply_project_sync(self.proj, plan.fingerprint, commit=self.commit,
-                                           source=str(self.lib), home=self.home)
+        lock = workflow.apply_project_sync(self.proj, self.approval_for(plan.fingerprint),
+                                           commit=self.commit, source=str(self.lib), home=self.home)
         self.assertEqual(sorted(s["id"] for s in lock["skills"]),
                          ["demo-pentest", "demo-project-review", "demo-testing-base"])
+
+    def test_failure_after_commit_marker_is_a_completed_sync(self):
+        plan = self._second_sync_plan()
+        for name in ("commit:marker", "commit:cleaned"):
+            with self.subTest(step=name):
+                def fault(step, name=name):
+                    if step == name:
+                        raise OSError("failure after the commit point")
+                lock = self.apply_locked(self.plan(), fault_hook=fault)
+                self.assertEqual(sorted(s["id"] for s in lock["skills"]),
+                                 ["demo-pentest", "demo-project-review", "demo-testing-base"])
+                self.assertFalse(txn_pending(self.proj))
+                self.assertEqual({i.code for i in workflow.doctor(self.proj, home=self.home)
+                                  if i.severity == "error"}, set())
+                break  # the second iteration would re-plan an already applied state
 
     def test_no_temp_or_backup_files_left(self):
         self.sync()
         self.assertEqual([p for p in self.proj.rglob(".tareq-tmp-*")], [])
-        self.assertEqual(list((Path(os.environ["TAREQ_CACHE"]) / "transactions").iterdir()), [])
+        self.assertFalse(txn_pending(self.proj))
 
 
 # --------------------------------------------------------------------------- R-18 rollback
@@ -588,7 +641,7 @@ class TestRollback(Env):
     def rollback(self):
         plan, _ = workflow.plan_rollback(self.proj, self.rev1, source=str(self.lib), home=self.home)
         self.assertTrue(plan.ok, plan.summary)
-        return plan, workflow.apply_rollback(self.proj, self.rev1, plan.fingerprint,
+        return plan, workflow.apply_rollback(self.proj, self.rev1, self.approval_for(plan.fingerprint),
                                              source=str(self.lib), home=self.home)
 
     def test_rollback_restores_generated_state_exactly(self):
@@ -627,8 +680,8 @@ class TestRollback(Env):
 
     def test_rollback_wrong_fingerprint_refused(self):
         before = snapshot(self.proj)
-        with self.assertRaises(SyncError):
-            workflow.apply_rollback(self.proj, self.rev1, "sha256:" + "1" * 64,
+        with self.assertRaises(ApprovalError):
+            workflow.apply_rollback(self.proj, self.rev1, self.approval_for("sha256:" + "1" * 64),
                                     source=str(self.lib), home=self.home)
         self.assertEqual(snapshot(self.proj), before)
 
@@ -636,12 +689,12 @@ class TestRollback(Env):
         plan, _ = workflow.plan_rollback(self.proj, self.rev1, source=str(self.lib), home=self.home)
         before = snapshot(self.proj)
 
-        def fault(index, op):
-            if op["op"] == "write_lock":
+        def fault(step):
+            if step == "op:%d:before" % next(i for i, o in enumerate(plan.operations) if o["op"] == "write_lock"):
                 raise OSError("injected")
         with self.assertRaises(SyncError):
-            workflow.apply_rollback(self.proj, self.rev1, plan.fingerprint, source=str(self.lib),
-                                    home=self.home, fault_hook=fault)
+            workflow.apply_rollback(self.proj, self.rev1, self.approval_for(plan.fingerprint),
+                                    source=str(self.lib), home=self.home, fault_hook=fault)
         self.assertEqual(snapshot(self.proj), before)
 
 
