@@ -5,34 +5,34 @@ History and full rationale: [`TAREQ-SKILLS-PROJECT-HANDOFF.md`](TAREQ-SKILLS-PRO
 (do not edit). Rules: [`../CLAUDE.md`](../CLAUDE.md). Strategy:
 [`implementation-plan.md`](implementation-plan.md).
 
-**Last updated:** 2026-10-29 · **Milestone:** M1 complete, in PR review · **Next:** M2 (needs owner approval)
+**Last updated:** 2026-10-29 · **Milestone:** M2 complete, in PR review · **Next:** M3 (authorized; starts after owner merges PR #3)
 
 ## State
 
 | Item | State |
 |---|---|
 | Repository | `TareqQadi3/tareq-skills`, private, default branch `main` |
-| `main` | M0 merged via PR #1, merge commit `5e3366a` |
-| M1 branch | `claude/m1-catalog` → PR to `main` (not merged) |
+| `main` | M1 merged via PR #2, merge commit `5056697` |
+| M2 branch | `claude/m2-adapters` → PR to `main` (not merged) |
+| Integration | Requirements R-01…R-11 in `architecture/adapters.md`; OpenCode verified from docs source only |
 | Catalog | Schemas in `catalog/schema/`; `skills.yaml` empty (no skills); `stacks.yaml` has 11 detection definitions; no packs/overlays yet |
 | Validator | `python3 bin/validate_catalog.py [--catalog DIR] [--project-dir DIR]` |
 | Tests | `python3 -m unittest discover -s tests -v` — 88 tests, synthetic fixtures only (incl. `tests/fixtures/library/`) |
 | Branch protection on `main` | **Not configured** (`protected: false`). Owner action required — see below. |
 | Skills in library | None. Nothing imported, installed, or changed. |
-| OpenCode docs | Unverified; domain not allowed in session network policy (O-12). |
+| OpenCode | Docs read from official GitHub source (D-19); not installed or run. `opencode.ai` blocked by network policy. |
 
 ## Owner actions pending
 
-1. Review and merge the M1 PR.
-2. Protect `main` (GitHub → Settings → Rules → Rulesets → New branch ruleset → target
+1. Review and merge the M2 PR (#3).
+2. Confirm the merge; M3 then starts (D-25).
+3. Protect `main` (GitHub → Settings → Rules → Rulesets → New branch ruleset → target
    `main` → "Require a pull request before merging" + "Block force pushes"). On private
    repos this may require GitHub Pro; otherwise D-11 is enforced by convention.
-3. Before M2: allow the OpenCode docs domain in the session network policy (O-12).
 
-## Next actions (M2, after approval)
+## Next actions (M3, after approval)
 
-- Read official Claude Code skills docs (remaining part, §10-A) and OpenCode docs; write
-  adapter requirements; decide O-05 and O-09. See `implementation-plan.md`.
+- Execute the M3 plan in `implementation-plan.md` (requirements R-01…R-20, safeguards D-22/D-24, D-23 for authored skills).
 
 ## Do not
 

@@ -43,12 +43,30 @@ Each milestone starts only after the owner approves the previous one (merged PR)
 |---|---|---|---|
 | M0 | Repo bootstrap, rules, docs | — | Push verified; structure documented. |
 | M1 | Catalog schemas, detection definitions, packs, overlays, conflict/compatibility validation, project config + lock schemas | M0 | Schemas + validator; positive and negative fixtures; every rule has a test that fails when the rule is broken. |
-| M2 | Read official Claude Code and OpenCode docs; adapter requirements | M1; O-12 (OpenCode network access) | One requirements section per tool with verified paths, fields, discovery, permissions; O-05 and O-09 decided. |
+| M2 | Read official Claude Code and OpenCode docs; adapter requirements | M1 | One requirements section per tool with verified paths, fields, discovery, permissions; O-05 and O-09 decided. |
 | M3 | Minimum manager: `scan`, `select`, lock generation, approval-gated `sync`, `rollback`, intake of skills/notes/lessons, project history templates, both adapters | M2 | End-to-end on a synthetic project: detect → propose → approve → lock → generate → roll back; tests on real behavior. |
 | M4 | Seed library: review and import only the skills SMMS needs (copy, `SOURCE.txt`, pinned SHA); default `core` pack contents | M3; owner approval per skill | Each import reviewed (security, license, overlap) and approved; catalog validates. |
 | M5 | SMMS pilot (SMMS as client) | M4; owner approval to touch SMMS | SMMS runs from lock; enabled descriptions and context cost measured before/after; owner confirms the workflow is usable. |
 | M6 | Expansion: remaining requested repos (O-07), cross-project adoption proposals, tooling (O-08) | M5 accepted | Driven by pilot findings; each addition approved. |
 | M7 | CI and quality: tests on PRs, secret scanning, schema/link checks | M1 (can start any time after) | CI green on PRs. |
+
+## M3 plan (authorized to start after PR #3 is merged — D-25)
+
+One work package on `claude/m3-manager`; Python only (D-17). Requirements: R-01…R-20 in
+[`architecture/adapters.md`](architecture/adapters.md).
+
+| Part | Content |
+|---|---|
+| Lock v2 | Extend `lock.schema.json` (`lock_version: 2`): generated files with output hashes, tareq-owned settings keys, library commit. Update the validator and tests. |
+| CLI `bin/tareq` | `scan` (evaluate `stacks.yaml`) · `select` (propose the smallest pack/skill set; same-level conflicts are presented, never chosen) · `sync --plan` (dry-run summary + plan hash) · `sync --apply --plan-hash H` · `doctor` (collisions, hashes, drift, `OPENCODE_DISABLE_*`) · `rollback --to <git-rev>` · `add-skill` (intake as `candidate` with computed hash and `SOURCE.txt`) |
+| Adapters | Claude Code: copy into `.claude/skills/`, `skillOverrides`, `.claude/rules/tareq-skills.md`. OpenCode: `opencode.json` `permission.skill` + `instructions`. |
+| Project files | Generated skill register by category plus `.tareq/history.md` (append-only decisions log), from `templates/`. |
+| Manager skill | `tareq-skill/SKILL.md`: owner rules, when to run each command, approval steps. |
+| Tests | Unit tests per command; end-to-end on a temp synthetic project (scan → select → plan → apply → verify hashes → manual edit preserved → collision blocks → rollback); live Claude Code probe of generated output. OpenCode: documented only, NOT TESTED. |
+
+Acceptance: the M3 row above, plus every R-12…R-20 safeguard has a failing-path test.
+Authored skills follow D-23 (validator: `source.type: local` is exempt from the license
+allowlist; review still required).
 
 **Gate to expand (M6):** the M5 pilot shows the basic workflow works in real use, with
 measured context savings and no unresolved defects.

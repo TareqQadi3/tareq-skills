@@ -4,7 +4,7 @@ Centralized, reusable skills library for all of Tareq's current and future proje
 with a reusable manager skill (`tareq-skill`) that selects and activates the best
 compatible skills per project, for **Claude Code** and **OpenCode**.
 
-> Status: **M1 — catalog schema and validation**. No skills have been imported yet. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current state.
+> Status: **M2 — agent integration requirements**. No skills have been imported yet. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current state.
 
 ## Why
 
@@ -56,6 +56,7 @@ Client projects will hold `.tareq/skills.yaml` (selected packs/skills) and
 - [`docs/project-log.md`](docs/project-log.md) — milestone log
 - [`docs/architecture/overview.md`](docs/architecture/overview.md) — approved architecture
 - [`docs/architecture/catalog.md`](docs/architecture/catalog.md) — catalog data model and validation rules
+- [`docs/architecture/adapters.md`](docs/architecture/adapters.md) — Claude Code / OpenCode integration requirements
 - [`docs/TAREQ-SKILLS-PROJECT-HANDOFF.md`](docs/TAREQ-SKILLS-PROJECT-HANDOFF.md) — original handoff (Arabic, authoritative history; do not edit)
 
 ## License
