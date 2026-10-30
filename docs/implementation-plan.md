@@ -50,7 +50,7 @@ Each milestone starts only after the owner approves the previous one (merged PR)
 | M6 | Expansion: remaining requested repos (O-07), cross-project adoption proposals, tooling (O-08) | M5 accepted | Driven by pilot findings; each addition approved. |
 | M7 | CI and quality: tests on PRs, secret scanning, schema/link checks | M1 (can start any time after) | CI green on PRs. |
 
-## M3 plan (authorized to start after PR #3 is merged — D-25)
+## M3 plan (implemented; see `architecture/manager.md`)
 
 One work package on `claude/m3-manager`; Python only (D-17). Requirements: R-01…R-20 in
 [`architecture/adapters.md`](architecture/adapters.md).

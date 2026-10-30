@@ -2,7 +2,7 @@
 """Validate the tareq-skills catalog, and optionally a client project's
 `.tareq/skills.yaml` and `.tareq/skills.lock`.
 
-Validation only (M1): no selection, sync, adapter generation, or rollback.
+Validation only. Selection, sync, and rollback live in `bin/tareq` (M3).
 
 Usage:
     python3 bin/validate_catalog.py [--catalog DIR] [--project-dir DIR]
@@ -96,6 +96,30 @@ def content_hash(directory: Path) -> str:
             raise UnsafeContentError(f"special file not allowed: {rel}")
         lines.append(f"{rel}\0{hashlib.sha256(path.read_bytes()).hexdigest()}\n")
     return "sha256:" + hashlib.sha256("".join(lines).encode()).hexdigest()
+
+
+class FrontmatterError(ValueError):
+    pass
+
+
+def split_frontmatter(text: str) -> tuple[dict, str]:
+    """Split a SKILL.md into (frontmatter mapping, body). The opening `---` must be the
+    first line (Claude Code and OpenCode both require it)."""
+    if not text.startswith("---\n"):
+        raise FrontmatterError("SKILL.md must start with a '---' frontmatter block")
+    end = text.find("\n---\n", 3)
+    if end == -1:
+        if text.endswith("\n---"):
+            end = len(text) - 4
+        else:
+            raise FrontmatterError("unterminated frontmatter block")
+    try:
+        data = yaml.load(text[4:end + 1], Loader=_StrictLoader)  # noqa: S506
+    except yaml.YAMLError as exc:
+        raise FrontmatterError(f"frontmatter is not valid YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise FrontmatterError("frontmatter must be a mapping")
+    return data, text[end + 5:]
 
 
 def is_safe_relative_glob(pattern: str) -> bool:
@@ -292,7 +316,9 @@ def check_catalog(cat: Catalog, where: str = "catalog") -> list[Issue]:
         if s["status"] == "active":
             if s["review"]["state"] != "approved":
                 err("active-unreviewed", w, "active skill must have review.state 'approved'")
-            if license_id not in ACCEPTED_LICENSES and "license_exception" not in s:
+            # D-23: skills authored in this repository (source.type local) are exempt.
+            if (s["source"]["type"] != "local" and license_id not in ACCEPTED_LICENSES
+                    and "license_exception" not in s):
                 err("license-not-accepted", w,
                     f"license {license_id!r} is not accepted; skill must stay 'candidate' "
                     "unless an owner license_exception is recorded")
@@ -336,6 +362,16 @@ def check_catalog(cat: Catalog, where: str = "catalog") -> list[Issue]:
                 err("content-hash-mismatch", w,
                     "library content does not match source.content_hash (content changed "
                     "without updating the catalog)")
+            skill_md = directory / "SKILL.md"
+            try:
+                fm, _ = split_frontmatter(skill_md.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, FrontmatterError) as exc:
+                err("frontmatter-invalid", w, f"SKILL.md: {exc}")
+                continue
+            if fm.get("name") != sid:
+                err("name-mismatch", w, f"SKILL.md name {fm.get('name')!r} must equal the id (R-03)")
+            if not isinstance(fm.get("description"), str) or not fm["description"].strip():
+                err("frontmatter-invalid", w, "SKILL.md needs a non-empty description")
 
     cycle = _find_cycle({sid: s.get("requires", []) for sid, s in cat.skills.items()})
     if cycle:
@@ -517,7 +553,12 @@ def check_lock(lock: dict, cat: Catalog | None, where: str,
         if lock["project"] != config["project"]:
             err("project-mismatch", "lock project differs from configuration")
         if config_path is not None and lock["config_hash"] != file_hash(config_path):
-            err("stale-lock", "config_hash does not match .tareq/skills.yaml")
+            if "rollback" in lock:
+                issues.append(Issue("warning", "stale-lock", where,
+                                    f"lock was rolled back to {lock['rollback']['from_rev']}; "
+                                    ".tareq/skills.yaml was not modified"))
+            else:
+                err("stale-lock", "config_hash does not match .tareq/skills.yaml")
     if cat is None:
         return issues
     for e in lock["skills"]:
@@ -560,8 +601,8 @@ def check_lock(lock: dict, cat: Catalog | None, where: str,
     auto = sum(effective_invocation(sid, cat) == "auto" for sid in known)
     if lock["budget"]["used"] != auto:
         err("budget-mismatch", f"budget.used is {lock['budget']['used']}, expected {auto}")
-    if config is not None and not any(i.severity == "error" for i in
-                                      check_project_config(config, cat, "config")):
+    if config is not None and "rollback" not in lock and not any(
+            i.severity == "error" for i in check_project_config(config, cat, "config")):
         expected, _ = resolve_project_skills(config, cat)
         actual = {e["id"]: e["via"] for e in lock["skills"]}
         if set(actual) != set(expected):

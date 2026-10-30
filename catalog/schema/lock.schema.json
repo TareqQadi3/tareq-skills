@@ -1,44 +1,97 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "lock.schema.json",
-  "title": "Resolved, pinned skill set (.tareq/skills.lock)",
+  "title": "Resolved, pinned skill set (.tareq/skills.lock), version 2",
   "type": "object",
   "additionalProperties": false,
-  "required": ["lock_version", "generated_at", "project", "catalog", "config_hash", "budget", "targets", "packs", "skills"],
+  "required": [
+    "lock_version",
+    "generated_at",
+    "project",
+    "catalog",
+    "config_hash",
+    "budget",
+    "targets",
+    "packs",
+    "skills",
+    "generated",
+    "settings",
+    "plan_fingerprint"
+  ],
   "properties": {
-    "lock_version": {"const": 1},
-    "generated_at": {"$ref": "common.schema.json#/$defs/dateTime"},
-    "project": {"$ref": "common.schema.json#/$defs/id"},
+    "lock_version": {
+      "const": 2
+    },
+    "generated_at": {
+      "$ref": "common.schema.json#/$defs/dateTime"
+    },
+    "project": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
     "catalog": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repo", "commit"],
+      "required": [
+        "repo",
+        "commit"
+      ],
       "properties": {
-        "repo": {"$ref": "common.schema.json#/$defs/url"},
-        "commit": {"$ref": "common.schema.json#/$defs/commit"},
-        "ref": {"type": "string"}
+        "repo": {
+          "$ref": "common.schema.json#/$defs/url"
+        },
+        "commit": {
+          "$ref": "common.schema.json#/$defs/commit"
+        },
+        "ref": {
+          "type": "string"
+        }
       }
     },
-    "config_hash": {"$ref": "common.schema.json#/$defs/sha256"},
+    "config_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
     "budget": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["max_descriptions", "used"],
+      "required": [
+        "max_descriptions",
+        "used"
+      ],
       "properties": {
-        "max_descriptions": {"type": "integer", "minimum": 1},
-        "used": {"type": "integer", "minimum": 0}
+        "max_descriptions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "used": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
-    "targets": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/target"}},
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "common.schema.json#/$defs/target"
+      }
+    },
     "packs": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "hash"],
+        "required": [
+          "id",
+          "hash"
+        ],
         "properties": {
-          "id": {"$ref": "common.schema.json#/$defs/id"},
-          "hash": {"$ref": "common.schema.json#/$defs/sha256"}
+          "id": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "hash": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          }
         }
       }
     },
@@ -47,24 +100,175 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "version", "source", "content_hash", "license", "via"],
+        "required": [
+          "id",
+          "version",
+          "source",
+          "content_hash",
+          "license",
+          "via",
+          "output_hash"
+        ],
         "properties": {
-          "id": {"$ref": "common.schema.json#/$defs/id"},
-          "version": {"type": "string", "minLength": 1},
+          "id": {
+            "$ref": "common.schema.json#/$defs/id"
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1
+          },
           "source": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["type"],
+            "required": [
+              "type"
+            ],
             "properties": {
-              "type": {"enum": ["upstream", "local"]},
-              "url": {"$ref": "common.schema.json#/$defs/url"},
-              "commit": {"$ref": "common.schema.json#/$defs/commit"}
+              "type": {
+                "enum": [
+                  "upstream",
+                  "local"
+                ]
+              },
+              "url": {
+                "$ref": "common.schema.json#/$defs/url"
+              },
+              "commit": {
+                "$ref": "common.schema.json#/$defs/commit"
+              }
             }
           },
-          "content_hash": {"$ref": "common.schema.json#/$defs/sha256"},
-          "license": {"type": ["string", "null"]},
-          "via": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^(include|pack:[a-z0-9]+(-[a-z0-9]+)*)$"}},
-          "overlay_hash": {"$ref": "common.schema.json#/$defs/sha256"}
+          "content_hash": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          },
+          "license": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "via": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^(include|pack:[a-z0-9]+(-[a-z0-9]+)*)$"
+            }
+          },
+          "overlay_hash": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          },
+          "output_hash": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          }
+        }
+      }
+    },
+    "generated": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "hash"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\\\]+$",
+            "minLength": 1
+          },
+          "hash": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          }
+        }
+      }
+    },
+    "settings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "created",
+          "keys",
+          "list_items"
+        ],
+        "properties": {
+          "file": {
+            "enum": [
+              ".claude/settings.json",
+              "opencode.json"
+            ]
+          },
+          "created": {
+            "type": "boolean"
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "key",
+                "value"
+              ],
+              "properties": {
+                "key": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "value": {}
+              }
+            }
+          },
+          "list_items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "key",
+                "value"
+              ],
+              "properties": {
+                "key": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "plan_fingerprint": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from_rev"
+      ],
+      "properties": {
+        "from_rev": {
+          "type": "string",
+          "minLength": 1
         }
       }
     }

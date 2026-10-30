@@ -65,3 +65,19 @@ Meaningful milestones and results only. Newest last.
 - O-14 approved (D-23: authored skills exempt from external license rule; third-party not).
   Added safeguards R-18…R-20 (D-24: owned-only rollback, atomic sync, plan-fingerprint
   approval). M3 authorized after PR #3 merge (D-25).
+
+## 2026-10-30 — M3: minimum manager
+
+- M2 merged (PR #3, `c09924b`); D-20…D-25 verified on `main`.
+- Delivered `bin/tareq` + `bin/tareqlib/` (scan, select, sync plan/apply, rollback, doctor,
+  add-skill, note); lock version 2; templates; `tareq-skill/SKILL.md`;
+  `docs/architecture/manager.md`. Validator: R-03 name check, frontmatter check, D-23
+  exemption for authored skills, rollback-aware lock checks.
+- Tests: 158 run, 157 PASS + 1 opt-in live test skipped by default; live Claude Code test
+  run separately: PASS (3 auto skills listed, manual skill hidden via `skillOverrides`,
+  rules file loaded). OpenCode: documented only, NOT TESTED.
+- Mutation checks: disabling R-12, R-13, R-14, R-15, R-18, R-19, R-20, R-05, and the
+  owned-path and intake-path checks each made the matching tests fail.
+- Defects found and fixed during M3: post-write verification covered only written files
+  (now the whole desired state); failed intake left an empty category dir; a crafted lock
+  could claim owner files; intake category/id path traversal.
