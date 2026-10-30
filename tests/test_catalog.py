@@ -34,6 +34,7 @@ class Workspace:
         self.root = Path(self._tmp.name)
         shutil.copytree(FIXTURES / "catalog", self.root / "catalog")
         shutil.copytree(FIXTURES / "project", self.root / "project")
+        shutil.copytree(FIXTURES / "library", self.root / "library")
         self.catalog = self.root / "catalog"
         self.project = self.root / "project"
 
@@ -103,6 +104,13 @@ class TestValidFixtures(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- YAML / schema
+
+class TestWorkspaceBaseline(Base):
+    def test_unmodified_workspace_has_no_errors(self):
+        # Guards every negative test: each one starts from a fully valid state.
+        issues = self.ws.validate(with_project=True)
+        self.assertEqual(codes(issues), set(), [str(i) for i in issues])
+
 
 class TestYamlAndSchema(Base):
     def test_malformed_yaml_rejected(self):
@@ -255,6 +263,141 @@ class TestCatalogRules(Base):
         self.assertError("bad-pattern")
 
 
+class TestContentIntegrity(Base):
+    def _skill_md(self, sid="demo-testing-base"):
+        return self.ws.root / "library" / "testing" / sid / "SKILL.md"
+
+    def test_content_changed_without_hash_update(self):
+        md = self._skill_md()
+        md.write_text(md.read_text() + "\ninjected line\n")
+        self.assertError("content-hash-mismatch")
+
+    def test_added_file_changes_hash(self):
+        (self._skill_md().parent / "extra.sh").write_text("echo hi\n")
+        self.assertError("content-hash-mismatch")
+
+    def test_missing_content(self):
+        shutil.rmtree(self._skill_md().parent)
+        self.assertError("missing-content")
+
+    def test_symlink_in_content_rejected(self):
+        (self._skill_md().parent / "link").symlink_to("/etc/hostname")
+        self.assertError("unsafe-content")
+
+    def test_content_hash_is_deterministic(self):
+        d = self._skill_md().parent
+        self.assertEqual(v.content_hash(d), v.content_hash(d))
+
+    def test_duplicate_name(self):
+        self.ws.edit_skill("demo-pentest", lambda s: s.update(name="demo-testing-base"))
+        self.assertError("duplicate-name")
+
+    def test_duplicate_content_warns(self):
+        def same(d):
+            h = self.ws.skill(d, "demo-testing-base")["source"]["content_hash"]
+            self.ws.skill(d, "demo-pentest")["source"]["content_hash"] = h
+        self.ws.edit("catalog/skills.yaml", same)
+        self.assertIn("duplicate-content", codes(self.ws.validate(), "warning"))
+
+    def test_unsafe_detection_glob(self):
+        self.ws.edit("catalog/stacks.yaml",
+                     lambda d: d["stacks"][0]["detect"]["any"].append({"file": "../../etc/passwd"}))
+        self.assertError("unsafe-path")
+
+    def test_absolute_detection_glob(self):
+        self.ws.edit("catalog/stacks.yaml",
+                     lambda d: d["stacks"][0]["detect"]["any"].append({"file": "/etc/passwd"}))
+        self.assertError("unsafe-path")
+
+    def test_unsafe_overlay_path(self):
+        self.ws.edit("catalog/overlays/demo-ui-review-general.yaml",
+                     lambda d: d["set"].update(paths=["src/**", "../secrets/**"]))
+        self.assertError("unsafe-path")
+
+
+class TestConflictResolution(unittest.TestCase):
+    """O-04 / D-16 behavior of resolve_project_skills and check_project_config."""
+
+    def setUp(self):
+        self.cat, _ = v.load_catalog(FIXTURES / "catalog")
+        base = self.cat.skills["demo-testing-base"]
+        self.base = {k: base[k] for k in base if k not in ("conflicts_with", "requires")}
+
+    def add(self, sid, scope, conflicts=()):
+        s = dict(self.base, id=sid, name=sid, scope=scope, conflicts_with=list(conflicts))
+        if scope == "project":
+            s["project"] = "demo-app"
+        if scope == "stack":
+            s["stacks"] = ["java"]
+        self.cat.skills[sid] = s
+
+    def cfg(self, include):
+        return {"schema_version": 1, "project": "demo-app", "targets": ["claude-code"],
+                "catalog": {"repo": "https://github.com/TareqQadi3/tareq-skills", "ref": "x"},
+                "include": include}
+
+    def chain(self, p, t, g):
+        self.add(p, "project", [t])
+        self.add(t, "stack", [p, g])
+        self.add(g, "general", [t])
+        return v.resolve_project_skills(self.cfg([p, t, g]), self.cat)
+
+    def test_chain_resolved_by_priority(self):
+        selected, dropped = self.chain("p-skill", "t-skill", "g-skill")
+        self.assertEqual(set(selected), {"p-skill", "g-skill"})
+        self.assertEqual(dropped, [("t-skill", "p-skill")])
+
+    def test_chain_independent_of_id_spelling(self):
+        # Same topology, ids chosen so alphabetical order is reversed.
+        selected, dropped = self.chain("z-proj", "m-tech", "a-gen")
+        self.assertEqual(set(selected), {"z-proj", "a-gen"})
+        self.assertEqual(dropped, [("m-tech", "z-proj")])
+
+    def test_stack_beats_general(self):
+        self.add("t-one", "stack", ["g-one"])
+        self.add("g-one", "general", ["t-one"])
+        selected, _ = v.resolve_project_skills(self.cfg(["g-one", "t-one"]), self.cat)
+        self.assertEqual(set(selected), {"t-one"})
+
+    def test_same_level_requires_owner(self):
+        for scope in ("project", "stack", "general"):
+            with self.subTest(scope=scope):
+                self.add(f"x-{scope}", scope, [f"y-{scope}"])
+                self.add(f"y-{scope}", scope, [f"x-{scope}"])
+                issues = v.check_project_config(self.cfg([f"x-{scope}", f"y-{scope}"]),
+                                                self.cat, "cfg")
+                self.assertIn("unresolved-conflict", codes(issues))
+
+    def test_owner_decision_resolves(self):
+        self.add("x-gen", "general", ["y-gen"])
+        self.add("y-gen", "general", ["x-gen"])
+        cfg = self.cfg(["x-gen"])
+        cfg["packs"] = []
+        self.assertNotIn("unresolved-conflict", codes(v.check_project_config(cfg, self.cat, "cfg")))
+
+    def test_asymmetric_conflict_still_enforced(self):
+        self.add("x-gen", "general", ["y-gen"])
+        self.add("y-gen", "general")  # undeclared on this side
+        issues = v.check_project_config(self.cfg(["x-gen", "y-gen"]), self.cat, "cfg")
+        self.assertIn("unresolved-conflict", codes(issues))
+
+    def test_asymmetric_conflict_resolved_by_priority(self):
+        self.add("g-only", "general", ["p-only"])
+        self.add("p-only", "project")  # declared only by the lower-priority side
+        selected, dropped = v.resolve_project_skills(self.cfg(["g-only", "p-only"]), self.cat)
+        self.assertEqual(set(selected), {"p-only"})
+        self.assertEqual(dropped, [("g-only", "p-only")])
+
+    def test_dropped_dependency_is_reported(self):
+        self.add("p-dep", "project", ["g-need"])
+        self.add("g-need", "general", ["p-dep"])
+        self.add("g-user", "general")
+        self.cat.skills["g-user"]["requires"] = ["g-need"]
+        issues = v.check_project_config(self.cfg(["p-dep", "g-need", "g-user"]), self.cat, "cfg")
+        self.assertIn("missing-dependency", codes(issues))
+        self.assertIn("conflict-priority", codes(issues, "warning"))
+
+
 class TestPacksAndOverlays(Base):
     def test_pack_cycle(self):
         self.ws.edit("catalog/packs/core.yaml", lambda d: d.update(includes=["backend-java"]))
@@ -340,8 +483,27 @@ class TestProjectConfigAndLock(Base):
         self.ws.edit("project/.tareq/skills.yaml", lambda d: d["budget"].update(max_descriptions=2))
         self.assertError("budget-exceeded", with_project=True)
 
-    def test_budget_default_is_40(self):
-        self.assertEqual(v.DEFAULT_MAX_DESCRIPTIONS, 40)
+    def test_budget_default_applies_when_not_configured(self):
+        cat, _ = v.load_catalog(FIXTURES / "catalog")
+        template = cat.skills["demo-testing-base"]
+        for n in range(41):
+            cat.skills[f"bulk-{n}"] = dict(template, id=f"bulk-{n}", name=f"bulk-{n}")
+        cfg = {"schema_version": 1, "project": "demo-app", "targets": ["claude-code"],
+               "catalog": {"repo": "https://github.com/TareqQadi3/tareq-skills", "ref": "x"},
+               "include": [f"bulk-{n}" for n in range(40)]}
+        self.assertNotIn("budget-exceeded", codes(v.check_project_config(cfg, cat, "cfg")))
+        cfg["include"].append("bulk-40")
+        self.assertIn("budget-exceeded", codes(v.check_project_config(cfg, cat, "cfg")))
+
+    def test_budget_counts_invocation_after_overlays(self):
+        self.ws.edit("project/.tareq/skills.yaml", lambda d: d["budget"].update(max_descriptions=2))
+        self.assertError("budget-exceeded", with_project=True)
+        self.ws.write("catalog/overlays/demo-project-review.yaml",
+                      {"schema_version": 1, "skill": "demo-project-review", "reason": "x",
+                       "set": {"invocation": "manual"}})
+        cat, _ = v.load_catalog(self.ws.catalog)
+        cfg = v.load_yaml(self.ws.project / ".tareq" / "skills.yaml")
+        self.assertNotIn("budget-exceeded", codes(v.check_project_config(cfg, cat, "cfg")))
 
     def test_stale_lock_detected(self):
         self.ws.edit("project/.tareq/skills.yaml", lambda d: d["budget"].update(max_descriptions=9))
@@ -375,6 +537,37 @@ class TestProjectConfigAndLock(Base):
                                 "via": ["include"]})
         self.ws.edit("project/.tareq/skills.lock", add_conflict)
         self.assertError("unresolved-conflict", with_project=True)
+
+    def test_lock_version_mismatch(self):
+        self.ws.edit("project/.tareq/skills.lock", lambda d: d["skills"][0].update(version="9.9.9"))
+        self.assertError("version-mismatch", with_project=True)
+
+    def test_lock_license_mismatch(self):
+        self.ws.edit("project/.tareq/skills.lock", lambda d: d["skills"][0].update(license="MIT-0"))
+        self.assertError("license-mismatch", with_project=True)
+
+    def test_lock_source_mismatch(self):
+        self.ws.edit("project/.tareq/skills.lock",
+                     lambda d: next(s for s in d["skills"] if s["id"] == "demo-testing-base")
+                     ["source"].update(url="https://example.com/fork"))
+        self.assertError("source-mismatch", with_project=True)
+
+    def test_lock_missing_included_pack(self):
+        self.ws.edit("project/.tareq/skills.lock",
+                     lambda d: d.update(packs=[p for p in d["packs"] if p["id"] != "core"]))
+        self.assertError("pack-missing", with_project=True)
+
+    def test_lock_budget_used_must_match(self):
+        self.ws.edit("project/.tareq/skills.lock", lambda d: d["budget"].update(used=1))
+        self.assertError("budget-mismatch", with_project=True)
+
+    def test_lock_missing_skill_is_drift(self):
+        self.ws.edit("project/.tareq/skills.lock", lambda d: d.update(skills=d["skills"][1:]))
+        self.assertError("lock-drift", with_project=True)
+
+    def test_lock_targets_drift(self):
+        self.ws.edit("project/.tareq/skills.lock", lambda d: d.update(targets=["claude-code"]))
+        self.assertError("lock-drift", with_project=True)
 
     def test_lock_budget_used_over_max(self):
         self.ws.edit("project/.tareq/skills.lock", lambda d: d["budget"].update(used=11))

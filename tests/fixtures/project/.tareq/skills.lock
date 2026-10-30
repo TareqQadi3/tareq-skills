@@ -23,7 +23,7 @@ skills:
   version: 1.0.0
   source:
     type: local
-  content_hash: sha256:1111111111111111111111111111111111111111111111111111111111111111
+  content_hash: sha256:3f9d80c7bb1ac60cc3077fe4123a097484c37fc2e37b568100ef3d6a8fd8aa98
   license: MIT
   via:
   - include
@@ -33,7 +33,7 @@ skills:
     type: upstream
     url: https://example.com/spring-guide
     commit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-  content_hash: sha256:3333333333333333333333333333333333333333333333333333333333333333
+  content_hash: sha256:db2ef19dcc3c3e489c201fafb797fce02ff9e93024d5459bb7a93b164475d6dc
   license: MIT
   via:
   - pack:backend-java
@@ -43,7 +43,7 @@ skills:
     type: upstream
     url: https://example.com/testing-base
     commit: cccccccccccccccccccccccccccccccccccccccc
-  content_hash: sha256:4444444444444444444444444444444444444444444444444444444444444444
+  content_hash: sha256:906beb48edaf1db41c79ce4f34b14e7f1fbb20840c663aee0d3fa2d9563bf7c8
   license: ISC
   via:
   - pack:backend-java

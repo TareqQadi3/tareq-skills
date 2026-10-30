@@ -16,7 +16,7 @@ History and full rationale: [`TAREQ-SKILLS-PROJECT-HANDOFF.md`](TAREQ-SKILLS-PRO
 | M1 branch | `claude/m1-catalog` → PR to `main` (not merged) |
 | Catalog | Schemas in `catalog/schema/`; `skills.yaml` empty (no skills); `stacks.yaml` has 11 detection definitions; no packs/overlays yet |
 | Validator | `python3 bin/validate_catalog.py [--catalog DIR] [--project-dir DIR]` |
-| Tests | `python3 -m unittest discover -s tests -v` — 61 tests, synthetic fixtures only |
+| Tests | `python3 -m unittest discover -s tests -v` — 88 tests, synthetic fixtures only (incl. `tests/fixtures/library/`) |
 | Branch protection on `main` | **Not configured** (`protected: false`). Owner action required — see below. |
 | Skills in library | None. Nothing imported, installed, or changed. |
 | OpenCode docs | Unverified; domain not allowed in session network policy (O-12). |

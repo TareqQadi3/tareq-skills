@@ -37,3 +37,14 @@ Meaningful milestones and results only. Newest last.
 - Tests: 61/61 PASS. Mutation check (license rule and pack-cycle rule disabled) made the
   matching tests fail, confirming they test real behavior.
 - No skills imported; no existing skill or project touched.
+
+## 2026-10-30 — M1 pre-merge review
+
+- Fixed: priority resolution depended on id spelling in conflict chains (now visited by
+  priority, then id); lock was not checked against the configuration (`lock-drift`) or for
+  version/license/source/budget/used-pack consistency; library content hashes were never
+  computed (`content-hash-mismatch`, `missing-content`, symlinks rejected); duplicate skill
+  names; unsafe detection/overlay globs.
+- Tests: 88/88 PASS. Mutation checks: old resolution algorithm, disabled content-hash,
+  lock-drift, and path checks each make their matching tests fail.
+- O-06 and O-07 moved to M6 per D-18; candidate repos and tools remain listed in O-07.

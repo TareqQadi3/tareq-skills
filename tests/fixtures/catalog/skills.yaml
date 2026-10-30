@@ -1,4 +1,4 @@
-# SYNTHETIC test fixture. Not real skills; URLs and hashes are placeholders.
+# SYNTHETIC test fixture. Not real skills; URLs are placeholders; content hashes match tests/fixtures/library.
 schema_version: 1
 categories: [backend, frontend, testing, security, marketing]
 skills:
@@ -9,7 +9,7 @@ skills:
     scope: project
     project: demo-app
     version: "1.0.0"
-    source: {type: local, license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+    source: {type: local, license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:3f9d80c7bb1ac60cc3077fe4123a097484c37fc2e37b568100ef3d6a8fd8aa98"}
     status: active
     review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
     conflicts_with: [demo-ui-review-general]
@@ -21,7 +21,7 @@ skills:
     path: library/frontend/demo-ui-review-general
     scope: general
     version: "2.1.0"
-    source: {type: upstream, url: "https://example.com/ui-review", commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", license: Apache-2.0, fetched_at: "2026-10-29", content_hash: "sha256:2222222222222222222222222222222222222222222222222222222222222222"}
+    source: {type: upstream, url: "https://example.com/ui-review", commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", license: Apache-2.0, fetched_at: "2026-10-29", content_hash: "sha256:84333d77be4eb61c68413014414326d5f5a48c50d318758dc502070974ddb0c8"}
     status: active
     review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
     conflicts_with: [demo-project-review]
@@ -33,7 +33,7 @@ skills:
     path: library/backend/demo-spring-guide
     scope: stack
     version: "3.0.0"
-    source: {type: upstream, url: "https://example.com/spring-guide", commit: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:3333333333333333333333333333333333333333333333333333333333333333"}
+    source: {type: upstream, url: "https://example.com/spring-guide", commit: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:db2ef19dcc3c3e489c201fafb797fce02ff9e93024d5459bb7a93b164475d6dc"}
     status: active
     review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
     replaces: [demo-old-spring]
@@ -47,7 +47,7 @@ skills:
     path: library/testing/demo-testing-base
     scope: general
     version: "1.2.0"
-    source: {type: upstream, url: "https://example.com/testing-base", commit: "cccccccccccccccccccccccccccccccccccccccc", license: ISC, fetched_at: "2026-10-29", content_hash: "sha256:4444444444444444444444444444444444444444444444444444444444444444"}
+    source: {type: upstream, url: "https://example.com/testing-base", commit: "cccccccccccccccccccccccccccccccccccccccc", license: ISC, fetched_at: "2026-10-29", content_hash: "sha256:906beb48edaf1db41c79ce4f34b14e7f1fbb20840c663aee0d3fa2d9563bf7c8"}
     status: active
     review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
     cost: {description_chars: 400, description_tokens_est: 100}
@@ -58,7 +58,7 @@ skills:
     path: library/backend/demo-old-spring
     scope: stack
     version: "1.0.0"
-    source: {type: upstream, url: "https://example.com/old-spring", commit: "dddddddddddddddddddddddddddddddddddddddd", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:5555555555555555555555555555555555555555555555555555555555555555"}
+    source: {type: upstream, url: "https://example.com/old-spring", commit: "dddddddddddddddddddddddddddddddddddddddd", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:8cc5e44ee2d4a2fbb6760473c749e0a184194577698415852eb18715d2d57da4"}
     status: disabled
     review: {state: approved, reviewed_by: owner, date: "2026-10-29", notes: "Replaced by demo-spring-guide."}
     stacks: [spring-boot]
@@ -70,7 +70,7 @@ skills:
     path: library/frontend/demo-unlicensed
     scope: general
     version: "0.1.0"
-    source: {type: upstream, url: "https://example.com/unlicensed", commit: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", license: null, fetched_at: "2026-10-29", content_hash: "sha256:6666666666666666666666666666666666666666666666666666666666666666"}
+    source: {type: upstream, url: "https://example.com/unlicensed", commit: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", license: null, fetched_at: "2026-10-29", content_hash: "sha256:6133f16c04816fed3f984a38fddf4cc07c05ef764ab467203f4c8472cdae05d6"}
     status: candidate
     review: {state: pending}
     cost: {description_chars: 200, description_tokens_est: 50}
@@ -81,7 +81,7 @@ skills:
     path: library/marketing/demo-marketing-copy
     scope: general
     version: "1.0.0"
-    source: {type: upstream, url: "https://example.com/marketing-copy", commit: "ffffffffffffffffffffffffffffffffffffffff", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:7777777777777777777777777777777777777777777777777777777777777777"}
+    source: {type: upstream, url: "https://example.com/marketing-copy", commit: "ffffffffffffffffffffffffffffffffffffffff", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:5dec53f0b598c6b6404c641642a2d3e9a7cdc25eaa3ad2b50ff468aa5a43ed7e"}
     status: active
     review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
     cost: {description_chars: 700, description_tokens_est: 175}
@@ -92,7 +92,7 @@ skills:
     path: library/security/demo-pentest
     scope: general
     version: "1.0.0"
-    source: {type: upstream, url: "https://example.com/pentest", commit: "0000000000000000000000000000000000000000", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:8888888888888888888888888888888888888888888888888888888888888888"}
+    source: {type: upstream, url: "https://example.com/pentest", commit: "0000000000000000000000000000000000000000", license: MIT, fetched_at: "2026-10-29", content_hash: "sha256:3c8e9893dd515cbdee508f0dfb16fe496d90a500a6348067524c0db7d5423a2d"}
     status: active
     review: {state: approved, reviewed_by: owner, date: "2026-10-29"}
     cost: {description_chars: 800, description_tokens_est: 200}

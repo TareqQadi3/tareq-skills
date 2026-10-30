@@ -77,6 +77,34 @@ def file_hash(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+class UnsafeContentError(ValueError):
+    pass
+
+
+def content_hash(directory: Path) -> str:
+    """Deterministic hash of a skill directory: sha256 over sorted
+    '<relative posix path>\0<sha256 of bytes>\n' lines. Symlinks and special files are
+    rejected so content can never point outside the library."""
+    lines = []
+    for path in sorted(directory.rglob("*")):
+        rel = path.relative_to(directory).as_posix()
+        if path.is_symlink():
+            raise UnsafeContentError(f"symlink not allowed: {rel}")
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            raise UnsafeContentError(f"special file not allowed: {rel}")
+        lines.append(f"{rel}\0{hashlib.sha256(path.read_bytes()).hexdigest()}\n")
+    return "sha256:" + hashlib.sha256("".join(lines).encode()).hexdigest()
+
+
+def is_safe_relative_glob(pattern: str) -> bool:
+    """Project-relative glob: not absolute, no '..' segment, no backslashes, no drive letter."""
+    if pattern.startswith(("/", "~")) or "\\" in pattern or re.match(r"^[A-Za-z]:", pattern):
+        return False
+    return ".." not in pattern.split("/")
+
+
 # --------------------------------------------------------------------------- schemas
 
 def _load_schemas() -> dict[str, Draft202012Validator]:
@@ -118,6 +146,7 @@ class Catalog:
     categories: frozenset
     pack_hashes: dict
     overlay_hashes: dict
+    root: Path | None = None  # repository root holding library/; None skips content checks
 
 
 def _find_cycle(graph: dict[str, list[str]]) -> list[str] | None:
@@ -219,7 +248,8 @@ def load_catalog(catalog_dir: Path) -> tuple[Catalog | None, list[Issue]]:
                                 f"more than one overlay for skill '{doc['skill']}'"))
         overlay_map[doc["skill"]] = doc
     catalog = Catalog(skills, stacks, pack_map, overlay_map,
-                      frozenset(docs["skills.yaml"]["categories"]), pack_hashes, overlay_hashes)
+                      frozenset(docs["skills.yaml"]["categories"]), pack_hashes, overlay_hashes,
+                      root=catalog_dir.resolve().parent)
     return catalog, issues
 
 
@@ -281,6 +311,32 @@ def check_catalog(cat: Catalog, where: str = "catalog") -> list[Issue]:
             if r is not None and s["status"] == "active" and r["status"] == "active":
                 err("replaced-still-active", w, f"replaces '{rep}' but both are active")
 
+    seen_names: dict[str, str] = {}
+    seen_hashes: dict[str, str] = {}
+    for sid, s in sorted(cat.skills.items()):
+        w = f"{where}/skills/{sid}"
+        if s["name"] in seen_names:
+            err("duplicate-name", w, f"name '{s['name']}' already used by '{seen_names[s['name']]}'")
+        seen_names.setdefault(s["name"], sid)
+        h = s["source"]["content_hash"]
+        if h in seen_hashes:
+            warn("duplicate-content", w, f"same content_hash as '{seen_hashes[h]}'")
+        seen_hashes.setdefault(h, sid)
+        if cat.root is not None:
+            directory = cat.root / s["path"]
+            if not directory.is_dir() or directory.is_symlink():
+                err("missing-content", w, f"skill content not found at '{s['path']}'")
+                continue
+            try:
+                actual = content_hash(directory)
+            except UnsafeContentError as exc:
+                err("unsafe-content", w, str(exc))
+                continue
+            if actual != h:
+                err("content-hash-mismatch", w,
+                    "library content does not match source.content_hash (content changed "
+                    "without updating the catalog)")
+
     cycle = _find_cycle({sid: s.get("requires", []) for sid, s in cat.skills.items()})
     if cycle:
         err("requires-cycle", f"{where}/skills", " -> ".join(cycle))
@@ -292,6 +348,9 @@ def check_catalog(cat: Catalog, where: str = "catalog") -> list[Issue]:
             if ref == tid or ref not in cat.stacks:
                 err("unknown-stack", w, f"'implies' has invalid stack '{ref}'")
         for rule in t["detect"].get("any", []) + t["detect"].get("all", []):
+            glob = rule.get("file") or rule.get("file_contains", {}).get("glob")
+            if glob is not None and not is_safe_relative_glob(glob):
+                err("unsafe-path", w, f"glob must be project-relative without '..': {glob!r}")
             fc = rule.get("file_contains")
             if fc:
                 try:
@@ -336,9 +395,13 @@ def check_catalog(cat: Catalog, where: str = "catalog") -> list[Issue]:
                 err("pack-conflict", f"{where}/packs/{pid}", f"contains conflicting '{a}' and '{b}'")
 
     # Overlays -------------------------------------------------------------
-    for sid in cat.overlays:
+    for sid, o in cat.overlays.items():
         if sid not in cat.skills:
             err("unknown-skill", f"{where}/overlays/{sid}", f"overlay targets unknown skill '{sid}'")
+        for glob in o["set"].get("paths", []):
+            if not is_safe_relative_glob(glob):
+                err("unsafe-path", f"{where}/overlays/{sid}",
+                    f"paths entry must be project-relative without '..': {glob!r}")
 
     return issues
 
@@ -346,6 +409,12 @@ def check_catalog(cat: Catalog, where: str = "catalog") -> list[Issue]:
 def effective_invocation(sid: str, cat: Catalog) -> str:
     """Invocation mode after applying the skill's overlay, if any."""
     return cat.overlays.get(sid, {}).get("set", {}).get("invocation", cat.skills[sid]["invocation"])
+
+
+def _conflict(a: str, b: str, cat: Catalog) -> bool:
+    """True if either side declares the conflict (asymmetric declarations still count)."""
+    return (b in cat.skills.get(a, {}).get("conflicts_with", [])
+            or a in cat.skills.get(b, {}).get("conflicts_with", []))
 
 
 def _conflicting_pairs(members, cat: Catalog):
@@ -371,15 +440,21 @@ def resolve_project_skills(config: dict, cat: Catalog) -> tuple[dict[str, list[s
         via.setdefault(sid, []).append("include")
     for sid in config.get("exclude", []):
         via.pop(sid, None)
+    # Highest priority first, then id: a skill is dropped only when it conflicts with an
+    # already-kept skill of strictly higher priority. Independent of id spelling.
     dropped = []
-    for a, b in _conflicting_pairs(set(via), cat):
-        pa = SCOPE_PRIORITY[cat.skills[a]["scope"]]
-        pb = SCOPE_PRIORITY[cat.skills[b]["scope"]]
-        if pa != pb:
-            loser, winner = (b, a) if pa < pb else (a, b)
-            if loser in via and winner in via:
-                via.pop(loser)
-                dropped.append((loser, winner))
+    kept: list[str] = []
+    for sid in sorted(via, key=lambda x: (SCOPE_PRIORITY[cat.skills[x]["scope"]], x)):
+        prio = SCOPE_PRIORITY[cat.skills[sid]["scope"]]
+        winner = next((k for k in kept
+                       if SCOPE_PRIORITY[cat.skills[k]["scope"]] < prio and _conflict(sid, k, cat)),
+                      None)
+        if winner is None:
+            kept.append(sid)
+        else:
+            dropped.append((sid, winner))
+    for sid, _ in dropped:
+        via.pop(sid)
     return via, dropped
 
 
@@ -452,6 +527,13 @@ def check_lock(lock: dict, cat: Catalog | None, where: str,
             continue
         if e["content_hash"] != s["source"]["content_hash"]:
             err("hash-mismatch", f"'{e['id']}' content_hash differs from catalog")
+        if e["version"] != s["version"]:
+            err("version-mismatch", f"'{e['id']}' version differs from catalog")
+        if e["license"] != s["source"]["license"]:
+            err("license-mismatch", f"'{e['id']}' license differs from catalog")
+        if (e["source"]["type"] != s["source"]["type"]
+                or e["source"].get("url") != s["source"].get("url")):
+            err("source-mismatch", f"'{e['id']}' source type/url differs from catalog")
         if e["source"].get("commit") != s["source"].get("commit"):
             err("commit-mismatch", f"'{e['id']}' source commit differs from catalog")
         if s["status"] != "active":
@@ -464,7 +546,44 @@ def check_lock(lock: dict, cat: Catalog | None, where: str,
     for p in lock["packs"]:
         if cat.pack_hashes.get(p["id"]) != p["hash"]:
             err("pack-mismatch", f"pack '{p['id']}' hash differs from catalog")
+    locked_packs = {p["id"] for p in lock["packs"]}
+    used_packs = set()
+    for e in lock["skills"]:
+        for v in e["via"]:
+            if v.startswith("pack:"):
+                used_packs.add(v[5:])
+    for pid in sorted(used_packs):
+        used_packs |= _pack_closure(pid, cat.packs)
+    for pid in sorted(used_packs - locked_packs):
+        err("pack-missing", f"pack '{pid}' is used but not pinned in lock.packs")
+    known = [e["id"] for e in lock["skills"] if e["id"] in cat.skills]
+    auto = sum(effective_invocation(sid, cat) == "auto" for sid in known)
+    if lock["budget"]["used"] != auto:
+        err("budget-mismatch", f"budget.used is {lock['budget']['used']}, expected {auto}")
+    if config is not None and not any(i.severity == "error" for i in
+                                      check_project_config(config, cat, "config")):
+        expected, _ = resolve_project_skills(config, cat)
+        actual = {e["id"]: e["via"] for e in lock["skills"]}
+        if set(actual) != set(expected):
+            err("lock-drift", f"lock skills {sorted(actual)} differ from configuration "
+                              f"{sorted(expected)}")
+        elif any(sorted(actual.get(k, [])) != sorted(expected[k]) for k in expected):
+            err("lock-drift", "lock 'via' differs from configuration")
+        limit = config.get("budget", {}).get("max_descriptions", DEFAULT_MAX_DESCRIPTIONS)
+        if lock["budget"]["max_descriptions"] != limit:
+            err("lock-drift", "lock budget.max_descriptions differs from configuration")
+        if sorted(lock["targets"]) != sorted(config["targets"]):
+            err("lock-drift", "lock targets differ from configuration")
     return issues
+
+
+def _pack_closure(pack_id: str, packs: dict, _seen: frozenset = frozenset()) -> set[str]:
+    """Pack ids reachable through `includes` (cycle-safe), excluding the pack itself."""
+    out: set[str] = set()
+    for inc in packs.get(pack_id, {}).get("includes", []):
+        if inc not in _seen:
+            out |= {inc} | _pack_closure(inc, packs, _seen | {pack_id})
+    return out
 
 
 # --------------------------------------------------------------------------- CLI

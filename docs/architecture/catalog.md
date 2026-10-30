@@ -25,7 +25,7 @@ IDs are kebab-case (`^[a-z0-9]+(-[a-z0-9]+)*$`, ≤ 64 chars).
 |---|---|
 | `id`, `name` | Unique id; `name` is the skill's own declared name |
 | `category` | Must be in `categories` |
-| `path` | Must equal `library/<category>/<id>` — content stays separate from metadata |
+| `path` | Must equal `library/<category>/<id>` (relative to the repo root holding `catalog/`) — content stays separate from metadata |
 | `scope` | `project` (requires `project`), `stack` (requires `stacks`), or `general` |
 | `version` | Upstream tag or version of this copy |
 | `source` | `type` `upstream` (requires `url` + 40-char `commit`) or `local`; `license` (SPDX id or `null`); `fetched_at`; `content_hash` (`sha256:`) |
@@ -48,6 +48,8 @@ Error codes are stable; each is covered by a test in `tests/test_catalog.py`.
 | | Duplicate skill / stack / pack id, or two overlays for one skill | `duplicate-id` |
 | | Pack/overlay file name ≠ its id | `file-name` |
 | | Category not declared; path ≠ `library/<category>/<id>` | `unknown-category`, `path-mismatch` |
+| | Two skills with the same `name` (error); same `content_hash` (warning) | `duplicate-name`, `duplicate-content` |
+| Content | Skill directory missing; content differs from `content_hash`; symlink or special file inside | `missing-content`, `content-hash-mismatch`, `unsafe-content` |
 | References | Unknown skill / stack / pack; self-reference | `unknown-skill`, `unknown-stack`, `unknown-pack`, `self-reference` |
 | | `scope: stack` without stacks | `scope-stack-without-stacks` |
 | Conflicts | Conflict declared on one side only | `asymmetric-conflict` |
@@ -63,6 +65,14 @@ Error codes are stable; each is covered by a test in `tests/test_catalog.py`.
 | Packs | Disabled skill in a pack (error); candidate skill (warning) | `pack-disabled-skill`, `pack-candidate-skill` |
 | | Default pack reaches a `marketing` skill | `default-pack-marketing` |
 | Stacks | Invalid regex in `file_contains` | `bad-pattern` |
+| Paths | Detection glob or overlay `paths` entry is absolute, uses `..`, `~`, a backslash, or a drive letter | `unsafe-path` |
+
+## Content hash
+
+`content_hash` = `sha256:` + SHA-256 over the sorted lines
+`<relative posix path>\0<sha256 of file bytes>\n` for every regular file in the skill
+directory. Symlinks and special files are rejected. Any change to the content (edit, added
+or removed file) without updating the catalog fails validation.
 
 ## License policy (D-15)
 
@@ -94,8 +104,10 @@ and validates the rules.
 ## Project resolution (deterministic, not a selection engine)
 
 1. Expand `packs` (with includes) + `include`, then remove `exclude`.
-2. **Conflict priority (D-16):** `project` > `stack` > `general`. Across different levels the
-   higher-priority skill wins and the other is dropped (reported as a warning).
+2. **Conflict priority (D-16):** `project` > `stack` > `general`. Skills are visited by
+   (priority, id); a skill is dropped only if it conflicts with an already-kept skill of
+   strictly higher priority (reported as a warning). The result does not depend on id
+   spelling. A conflict declared on only one side still counts.
    At the same level, validation fails (`unresolved-conflict`): the owner decides by
    excluding one. Recency, popularity, or license clarity never decide between different
    skills; "latest" applies only to versions of the same skill.
@@ -115,9 +127,16 @@ The lock records: catalog repo + exact commit (+ optional tag), `config_hash` of
 skill: version, source type/url/commit, `content_hash`, license, `via` (`include` or
 `pack:<id>`), and `overlay_hash` when an overlay applies.
 
-Validation against the catalog: `stale-lock` (config changed), `hash-mismatch`,
-`commit-mismatch`, `overlay-mismatch`, `pack-mismatch`, `inactive-skill-selected`,
-`unresolved-conflict`, `duplicate-id`, `budget-exceeded`, `project-mismatch`, `unpinned-source`.
+Validation against the catalog: `hash-mismatch`, `commit-mismatch`, `version-mismatch`,
+`license-mismatch`, `source-mismatch`, `overlay-mismatch`, `pack-mismatch`, `pack-missing`
+(a used or included pack is not pinned), `budget-mismatch` (`used` ≠ auto-invoked count
+after overlays), `inactive-skill-selected`, `unresolved-conflict`, `duplicate-id`,
+`budget-exceeded`, `unpinned-source`. Against the project configuration: `stale-lock`
+(`config_hash`), `project-mismatch`, and `lock-drift` (resolved skills, `via`, budget
+maximum, or targets differ from what the configuration resolves to).
+
+Limitation: `catalog.commit` is format-checked only; matching it to the library checkout
+is part of sync (M3).
 
 Rollback = restore a previous committed lock (and the catalog commit it names); because
 every input is pinned and hashed, the generated output is reproducible. Lock generation,

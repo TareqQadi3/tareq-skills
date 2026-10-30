@@ -31,8 +31,8 @@ Source of truth for owner decisions. Section references (§) point to
 | ID | Question | Current recommendation | Needed by |
 |---|---|---|---|
 | O-05 | Claude Code distribution: pinned copies in `.claude/skills/`, private plugin marketplace, or both. | Decide after M2 doc review. | M2 |
-| O-06 | `disable-model-invocation: true` for `arena` and similar costly skills. | Yes (manual-only). | M4 |
-| O-07 | Fate of the 8 requested external repos (emilkowalski, impeccable, taste-skill, roast-room, marketingskills, instagram, youtube, arena-skill-16) and figma / playwright MCP. | Review one by one before any import. | M4 |
+| O-06 | `disable-model-invocation: true` for `arena` and similar costly skills. | Yes (manual-only). | M6 |
+| O-07 | Fate of the 8 requested external repos (emilkowalski, impeccable, taste-skill, roast-room, marketingskills, instagram, youtube, arena-skill-16) and figma / playwright MCP. | Review one by one before any import; deferred until after the SMMS pilot (D-18). | M6 |
 | O-08 | Browser, testing, and security tooling choices. | Evaluate step by step. | M6 |
 | O-09 | How clients consume the library (clone, submodule, subtree, sync script, plugin). | Decide after M2. | M2–M3 |
 | O-10 | SMMS skills cleanup (what to disable/merge). | Separate SMMS-track decision after M5. | M5 |
