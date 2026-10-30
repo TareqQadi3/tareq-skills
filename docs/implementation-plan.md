@@ -43,7 +43,7 @@ Each milestone starts only after the owner approves the previous one (merged PR)
 |---|---|---|---|
 | M0 | Repo bootstrap, rules, docs | — | Push verified; structure documented. |
 | M1 | Catalog schemas, detection definitions, packs, overlays, conflict/compatibility validation, project config + lock schemas | M0 | Schemas + validator; positive and negative fixtures; every rule has a test that fails when the rule is broken. |
-| M2 | Read official Claude Code and OpenCode docs; adapter requirements | M1; O-12 (OpenCode network access) | One requirements section per tool with verified paths, fields, discovery, permissions; O-05 and O-09 decided. |
+| M2 | Read official Claude Code and OpenCode docs; adapter requirements | M1 | One requirements section per tool with verified paths, fields, discovery, permissions; O-05 and O-09 decided. |
 | M3 | Minimum manager: `scan`, `select`, lock generation, approval-gated `sync`, `rollback`, intake of skills/notes/lessons, project history templates, both adapters | M2 | End-to-end on a synthetic project: detect → propose → approve → lock → generate → roll back; tests on real behavior. |
 | M4 | Seed library: review and import only the skills SMMS needs (copy, `SOURCE.txt`, pinned SHA); default `core` pack contents | M3; owner approval per skill | Each import reviewed (security, license, overlap) and approved; catalog validates. |
 | M5 | SMMS pilot (SMMS as client) | M4; owner approval to touch SMMS | SMMS runs from lock; enabled descriptions and context cost measured before/after; owner confirms the workflow is usable. |

@@ -1,7 +1,7 @@
 # Architecture overview (M0)
 
 Approved concepts only. Data model and validation rules: [`catalog.md`](catalog.md) (M1).
-Adapter designs follow in M2. Anything not listed here is not yet designed.
+Agent integration requirements: [`adapters.md`](adapters.md) (M2). Anything not listed here is not yet designed.
 
 ## Components
 
@@ -45,7 +45,8 @@ Adapter designs follow in M2. Anything not listed here is not yet designed.
 
 Save important state to in-project files (handoff / project log) and read them only when
 needed; minimize token use. A skill cannot run `/compact` or switch the main session
-model, so continuity relies on these files. Hook support for re-reading state is **unverified** (M2).
+model, so continuity relies on these files. Claude Code `SessionStart` hooks can inject state at session start (documented, see
+[`adapters.md`](adapters.md)); OpenCode equivalent unverified.
 
 ## Invariants
 
@@ -56,6 +57,5 @@ model, so continuity relies on these files. Hook support for re-reading state is
 
 ## Known platform facts and limits
 
-Verified facts about Claude Code skill loading (locations, frontmatter fields, name
-precedence, symlinks) are recorded in §10-A of the original handoff and will be
-completed in M2. OpenCode behavior is **unverified** (§10-B).
+Verified Claude Code and OpenCode loading behavior, differences, and limitations are in
+[`adapters.md`](adapters.md). It supersedes §10 of the original handoff.

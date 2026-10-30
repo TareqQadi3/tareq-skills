@@ -25,15 +25,15 @@ Source of truth for owner decisions. Section references (§) point to
 | D-16 | Conflict priority (O-04): project → technology (stack) → general. Same-level conflicts go to the owner; never decided by recency, popularity, or license clarity. "Latest" applies only to versions of the same skill. | 2026-10-29 | M1 approval |
 | D-17 | Implementation language (O-13): Python 3 + PyYAML + jsonschema; no other language without a concrete reason and approval. | 2026-10-29 | M1 approval |
 | D-18 | Strategy: smallest operational version first, validated on SMMS before expansion; see `implementation-plan.md` (capabilities, deferred features, milestones). | 2026-10-29 | M1 approval |
+| D-19 | O-12 closed without a network change: OpenCode docs are read from the official docs source in `github.com/sst/opencode` (commit recorded in `architecture/adapters.md`); `opencode.ai` stays blocked. | 2026-10-30 | M2 |
 
 ## Open
 
 | ID | Question | Current recommendation | Needed by |
 |---|---|---|---|
-| O-05 | Claude Code distribution: pinned copies in `.claude/skills/`, private plugin marketplace, or both. | Decide after M2 doc review. | M2 |
+| O-05 | Claude Code distribution: pinned copies in `.claude/skills/`, private plugin marketplace, or both. | Pinned verbatim copies committed in the client's `.claude/skills/` only (shared with OpenCode; repo-declared plugins don't load in cloud sessions). See `architecture/adapters.md`. | M3 |
 | O-06 | `disable-model-invocation: true` for `arena` and similar costly skills. | Yes (manual-only). | M6 |
 | O-07 | Fate of the 8 requested external repos (emilkowalski, impeccable, taste-skill, roast-room, marketingskills, instagram, youtube, arena-skill-16) and figma / playwright MCP. | Review one by one before any import; deferred until after the SMMS pilot (D-18). | M6 |
 | O-08 | Browser, testing, and security tooling choices. | Evaluate step by step. | M6 |
-| O-09 | How clients consume the library (clone, submodule, subtree, sync script, plugin). | Decide after M2. | M2–M3 |
+| O-09 | How clients consume the library (clone, submodule, subtree, sync script, plugin). | Sync command fetches the library at the pinned commit outside the client repo and writes the generated files + lock into it; no submodule/subtree. | M3 |
 | O-10 | SMMS skills cleanup (what to disable/merge). | Separate SMMS-track decision after M5. | M5 |
-| O-12 | Allow the OpenCode docs domain in the session network policy. | Required to verify the OpenCode adapter. | M2 |
