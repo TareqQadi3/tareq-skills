@@ -19,6 +19,10 @@ NFRAMES = int(FPS * DUR)
 L = np.array([-0.45, -0.65, 0.62]); L /= np.linalg.norm(L)
 HV = L + np.array([0, 0, 1.0]); HV /= np.linalg.norm(HV)
 
+# When set to an RGB colour, every ellipsoid is drawn as a flat silhouette in
+# that colour (used by the "guess the shadow" episode).
+SILHOUETTE = None
+
 
 def C(h):
     h = h.lstrip('#')
@@ -42,6 +46,8 @@ def _box(cx, cy, r):
 def ell(cv, cx, cy, rx, ry, col, ang=0.0, shade=1.0, spec=0.35, gloss=30,
         clip=None, alpha=1.0, pattern=None, egg=0.0, spin=0.0):
     """Shaded ellipsoid ('clay 3D' look) composited onto cv."""
+    if SILHOUETTE is not None:
+        col, pattern, shade, spec = SILHOUETTE, None, min(shade, 0.3), 0.0
     if rx < 0.6 or ry < 0.6 or alpha <= 0.002:
         return
     b = _box(cx, cy, max(rx, ry) * (1 + abs(egg)) + 1)
