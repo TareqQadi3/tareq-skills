@@ -102,6 +102,7 @@ approval (Option A, D-26, D-27).
   instead of denying; `recover` created `.tareq/` in a non-project directory.
 - Found by mutation checks and closed with new tests: journal path allowlist and the
   destination component of the fingerprint were not independently tested.
+- Mutation check (`python3 tests/mutation_check.py`): 47/47 safeguard mutations detected on the final code.
 - Tests: 215 run (1 opt-in live test skipped by default). Live Claude Code check on the final
   output: PASS. SIGKILL at all 48 transaction steps and at all 11 recovery steps: PASS.
   Power-loss durability and a real person typing on a real device: NOT TESTED. OpenCode: NOT TESTED.
