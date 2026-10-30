@@ -96,6 +96,9 @@ The project's own `CLAUDE.md` and `AGENTS.md` are never modified.
 | R-15 | Sync runs as a dry run first. It shows a change summary: skills added, updated, or removed; owned settings keys; budget before and after; collisions. Apply requires approval of that exact summary: the apply step must present the summary's hash and refuses if the plan changed. |
 | R-16 | Disabled skills stay in the catalog. Removing a generated skill from a project happens only for tareq-owned files, only through an approved plan. Manually maintained project files are never touched. |
 | R-17 | Reports label OpenCode results **documented** (from docs) or **tested** (executed). Untested OpenCode behavior is never reported as PASS. |
+| R-18 | Rollback restores or removes only files and settings keys that the lock proves were generated and owned by tareq-skills (path + recorded output hash). Anything else, including a generated file edited by hand since the last sync, is left untouched and reported. (D-24) |
+| R-19 | Sync is atomic. Every touched path is backed up before writing, and validation runs after writing. Any failure restores the exact pre-sync state: bytes, presence, and owned settings keys. No partial sync is ever left behind. (D-24) |
+| R-20 | Approval is bound to an immutable plan fingerprint: a hash over the library commit, source content hashes, the destination's current state (hash of every path the plan touches, including absence), and the ordered operation list. Apply recomputes it and refuses on any difference; a new plan and approval are then required. (D-24) |
 
 ## Limitations
 

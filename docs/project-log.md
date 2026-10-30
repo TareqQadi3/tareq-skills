@@ -62,3 +62,6 @@ Meaningful milestones and results only. Newest last.
 - Recommendations for O-05 and O-09 recorded; awaiting owner decision.
 - Owner approved O-05 and O-09 (D-20, D-21) with sync safeguards (D-22 → R-12…R-17).
   M3 plan added to `implementation-plan.md`; M3 not started.
+- O-14 approved (D-23: authored skills exempt from external license rule; third-party not).
+  Added safeguards R-18…R-20 (D-24: owned-only rollback, atomic sync, plan-fingerprint
+  approval). M3 authorized after PR #3 merge (D-25).

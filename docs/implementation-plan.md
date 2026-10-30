@@ -50,9 +50,9 @@ Each milestone starts only after the owner approves the previous one (merged PR)
 | M6 | Expansion: remaining requested repos (O-07), cross-project adoption proposals, tooling (O-08) | M5 accepted | Driven by pilot findings; each addition approved. |
 | M7 | CI and quality: tests on PRs, secret scanning, schema/link checks | M1 (can start any time after) | CI green on PRs. |
 
-## M3 plan (awaiting authorization)
+## M3 plan (authorized to start after PR #3 is merged — D-25)
 
-One work package on `claude/m3-manager`; Python only (D-17). Requirements: R-01…R-17 in
+One work package on `claude/m3-manager`; Python only (D-17). Requirements: R-01…R-20 in
 [`architecture/adapters.md`](architecture/adapters.md).
 
 | Part | Content |
@@ -64,7 +64,9 @@ One work package on `claude/m3-manager`; Python only (D-17). Requirements: R-01�
 | Manager skill | `tareq-skill/SKILL.md`: owner rules, when to run each command, approval steps. |
 | Tests | Unit tests per command; end-to-end on a temp synthetic project (scan → select → plan → apply → verify hashes → manual edit preserved → collision blocks → rollback); live Claude Code probe of generated output. OpenCode: documented only, NOT TESTED. |
 
-Acceptance: the M3 row above, plus every R-12…R-17 safeguard has a failing-path test.
+Acceptance: the M3 row above, plus every R-12…R-20 safeguard has a failing-path test.
+Authored skills follow D-23 (validator: `source.type: local` is exempt from the license
+allowlist; review still required).
 
 **Gate to expand (M6):** the M5 pilot shows the basic workflow works in real use, with
 measured context savings and no unresolved defects.
