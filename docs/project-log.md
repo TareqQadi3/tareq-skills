@@ -65,3 +65,46 @@ Meaningful milestones and results only. Newest last.
 - O-14 approved (D-23: authored skills exempt from external license rule; third-party not).
   Added safeguards R-18…R-20 (D-24: owned-only rollback, atomic sync, plan-fingerprint
   approval). M3 authorized after PR #3 merge (D-25).
+
+## 2026-10-30 — M3: minimum manager
+
+- M2 merged (PR #3, `c09924b`); D-20…D-25 verified on `main`.
+- Delivered `bin/tareq` + `bin/tareqlib/` (scan, select, sync plan/apply, rollback, doctor,
+  add-skill, note); lock version 2; templates; `tareq-skill/SKILL.md`;
+  `docs/architecture/manager.md`. Validator: R-03 name check, frontmatter check, D-23
+  exemption for authored skills, rollback-aware lock checks.
+- Tests: 158 run, 157 PASS + 1 opt-in live test skipped by default; live Claude Code test
+  run separately: PASS (3 auto skills listed, manual skill hidden via `skillOverrides`,
+  rules file loaded). OpenCode: documented only, NOT TESTED.
+- Mutation checks: disabling R-12, R-13, R-14, R-15, R-18, R-19, R-20, R-05, and the
+  owned-path and intake-path checks each made the matching tests fail.
+- Defects found and fixed during M3: post-write verification covered only written files
+  (now the whole desired state); failed intake left an empty category dir; a crafted lock
+  could claim owner files; intake category/id path traversal.
+
+## 2026-10-30 — M3 security review fixes (PR #4)
+
+Independent review of PR #4 found six defects; owner approved fixes F1–F6 with tool-enforced
+approval (Option A, D-26, D-27).
+
+- Confirmed before fixing: lost update under concurrent runs; SIGKILL left a half-applied
+  project with no recovery; hidden `--home` bypassed the collision check; a forged lock could
+  delete user settings and a manual skill; `note`/`select --init` wrote through symlinks;
+  a fingerprint was copyable (not proof of approval).
+- Fixed: approval enforced by the tool on the controlling terminal and fail-closed elsewhere
+  (`approval.py`); per-project `flock` (F1); durable journal + recovery + `recover` command
+  (F2); `--home` removed, home from passwd, environment in the fingerprint, option
+  abbreviations off (F3); ownership allowlist with library corroboration, settings-file
+  deletion only if untouched, rollback trusts only the configured library (F4); symlink,
+  directory and FIFO refusal in `note`/`select --init` (F5); R-19 wording corrected (F6).
+- Found by the new tests and fixed: argparse prefix `--approve` matched `--approve-overwrite`;
+  prompt summary could carry terminal escape sequences; a terminal I/O error would have crashed
+  instead of denying; `recover` created `.tareq/` in a non-project directory.
+- Found by mutation checks and closed with new tests: journal path allowlist and the
+  destination component of the fingerprint were not independently tested.
+- Mutation check (`python3 tests/mutation_check.py`): 47/47 safeguard mutations detected on the final code.
+- Tests: 215 run (1 opt-in live test skipped by default). Live Claude Code check on the final
+  output: PASS. SIGKILL at all 48 transaction steps and at all 11 recovery steps: PASS.
+  Power-loss durability and a real person typing on a real device: NOT TESTED. OpenCode: NOT TESTED.
+- In this cloud session the real CLI refuses `--apply` (exit 2): the owner's iPhone + cloud
+  environment cannot approve a sync. Decision O-15.

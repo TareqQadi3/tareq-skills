@@ -1,10 +1,10 @@
-# SYNTHETIC lock fixture. Regenerate if catalog fixtures or skills.yaml change.
-lock_version: 1
-generated_at: '2026-10-29T12:00:00Z'
+# SYNTHETIC lock fixture (version 2), produced by bin/tareq sync on the test fixtures.
+lock_version: 2
+generated_at: '2026-10-30T01:07:18Z'
 project: demo-app
 catalog:
   repo: https://github.com/TareqQadi3/tareq-skills
-  commit: 5e3366a75e5ccef831a65e94c8bfd9b5d5194130
+  commit: 055082f4334f73f6c41a66b75b639c1435d58db5
   ref: catalog-v0.1.0
 config_hash: sha256:d6c66fd06b8181c0debf92de69f03e3ab05be5bd5277da0486eb57c88810a5e2
 budget:
@@ -27,6 +27,7 @@ skills:
   license: MIT
   via:
   - include
+  output_hash: sha256:3f9d80c7bb1ac60cc3077fe4123a097484c37fc2e37b568100ef3d6a8fd8aa98
 - id: demo-spring-guide
   version: 3.0.0
   source:
@@ -37,6 +38,7 @@ skills:
   license: MIT
   via:
   - pack:backend-java
+  output_hash: sha256:db2ef19dcc3c3e489c201fafb797fce02ff9e93024d5459bb7a93b164475d6dc
 - id: demo-testing-base
   version: 1.2.0
   source:
@@ -47,3 +49,26 @@ skills:
   license: ISC
   via:
   - pack:backend-java
+  output_hash: sha256:906beb48edaf1db41c79ce4f34b14e7f1fbb20840c663aee0d3fa2d9563bf7c8
+generated:
+- path: .claude/rules/tareq-skills.md
+  hash: sha256:2c71b62c8b410fc0029a5050f50e334602949c276fe0b1b9e1720b7e4406249d
+- path: .claude/skills/demo-project-review/SKILL.md
+  hash: sha256:7a8bb231a5f0ed5b39aafd82bc5e63139b6f7118f613f0830d08801a6bccbf57
+- path: .claude/skills/demo-spring-guide/SKILL.md
+  hash: sha256:58699a089f7a0f9491cab90ca917ae6fb28b662e0de50dc56f42079951a32ba2
+- path: .claude/skills/demo-testing-base/SKILL.md
+  hash: sha256:dc0d7a6aac97b416471f98654a2ea2f35255950cca2e0fb7d8b2be2210126ebd
+- path: .tareq/SKILLS-backend.md
+  hash: sha256:0ec3a3ced1462b605bf725f751a3c4069f0b67538db9e9c830d785668dcdef7d
+- path: .tareq/SKILLS-testing.md
+  hash: sha256:eb51987d538c7dd155f7181b446686426e15f9854dd009d63c0ba6460476567d
+settings:
+- file: opencode.json
+  created: true
+  keys: []
+  list_items:
+  - key:
+    - instructions
+    value: .claude/rules/tareq-skills.md
+plan_fingerprint: sha256:e9bb1187b796aba25920f8ea3bb2d3666fe00af6b6fe2ccba4aaaefe9444bee7

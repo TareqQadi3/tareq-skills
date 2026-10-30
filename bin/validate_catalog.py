@@ -2,7 +2,7 @@
 """Validate the tareq-skills catalog, and optionally a client project's
 `.tareq/skills.yaml` and `.tareq/skills.lock`.
 
-Validation only (M1): no selection, sync, adapter generation, or rollback.
+Validation only. Selection, sync, and rollback live in `bin/tareq` (M3).
 
 Usage:
     python3 bin/validate_catalog.py [--catalog DIR] [--project-dir DIR]
@@ -96,6 +96,30 @@ def content_hash(directory: Path) -> str:
             raise UnsafeContentError(f"special file not allowed: {rel}")
         lines.append(f"{rel}\0{hashlib.sha256(path.read_bytes()).hexdigest()}\n")
     return "sha256:" + hashlib.sha256("".join(lines).encode()).hexdigest()
+
+
+class FrontmatterError(ValueError):
+    pass
+
+
+def split_frontmatter(text: str) -> tuple[dict, str]:
+    """Split a SKILL.md into (frontmatter mapping, body). The opening `---` must be the
+    first line (Claude Code and OpenCode both require it)."""
+    if not text.startswith("---\n"):
+        raise FrontmatterError("SKILL.md must start with a '---' frontmatter block")
+    end = text.find("\n---\n", 3)
+    if end == -1:
+        if text.endswith("\n---"):
+            end = len(text) - 4
+        else:
+            raise FrontmatterError("unterminated frontmatter block")
+    try:
+        data = yaml.load(text[4:end + 1], Loader=_StrictLoader)  # noqa: S506
+    except yaml.YAMLError as exc:
+        raise FrontmatterError(f"frontmatter is not valid YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise FrontmatterError("frontmatter must be a mapping")
+    return data, text[end + 5:]
 
 
 def is_safe_relative_glob(pattern: str) -> bool:
@@ -292,7 +316,9 @@ def check_catalog(cat: Catalog, where: str = "catalog") -> list[Issue]:
         if s["status"] == "active":
             if s["review"]["state"] != "approved":
                 err("active-unreviewed", w, "active skill must have review.state 'approved'")
-            if license_id not in ACCEPTED_LICENSES and "license_exception" not in s:
+            # D-23: skills authored in this repository (source.type local) are exempt.
+            if (s["source"]["type"] != "local" and license_id not in ACCEPTED_LICENSES
+                    and "license_exception" not in s):
                 err("license-not-accepted", w,
                     f"license {license_id!r} is not accepted; skill must stay 'candidate' "
                     "unless an owner license_exception is recorded")
@@ -336,6 +362,16 @@ def check_catalog(cat: Catalog, where: str = "catalog") -> list[Issue]:
                 err("content-hash-mismatch", w,
                     "library content does not match source.content_hash (content changed "
                     "without updating the catalog)")
+            skill_md = directory / "SKILL.md"
+            try:
+                fm, _ = split_frontmatter(skill_md.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, FrontmatterError) as exc:
+                err("frontmatter-invalid", w, f"SKILL.md: {exc}")
+                continue
+            if fm.get("name") != sid:
+                err("name-mismatch", w, f"SKILL.md name {fm.get('name')!r} must equal the id (R-03)")
+            if not isinstance(fm.get("description"), str) or not fm["description"].strip():
+                err("frontmatter-invalid", w, "SKILL.md needs a non-empty description")
 
     cycle = _find_cycle({sid: s.get("requires", []) for sid, s in cat.skills.items()})
     if cycle:
@@ -505,6 +541,12 @@ def check_lock(lock: dict, cat: Catalog | None, where: str,
     if issues:
         return issues
     err = lambda code, msg: issues.append(Issue("error", code, where, msg))  # noqa: E731
+    issues += check_lock_ownership(lock, where)
+    channel = lock.get("approval", {}).get("channel")
+    if channel != "tty":
+        issues.append(Issue("warning", "approval-channel", where,
+                            "lock has no terminal approval record" if channel is None else
+                            f"lock was approved through channel {channel!r}, not a terminal"))
     ids = [e["id"] for e in lock["skills"]]
     for dup in sorted({i for i in ids if ids.count(i) > 1}):
         err("duplicate-id", f"skill '{dup}' appears more than once")
@@ -517,7 +559,12 @@ def check_lock(lock: dict, cat: Catalog | None, where: str,
         if lock["project"] != config["project"]:
             err("project-mismatch", "lock project differs from configuration")
         if config_path is not None and lock["config_hash"] != file_hash(config_path):
-            err("stale-lock", "config_hash does not match .tareq/skills.yaml")
+            if "rollback" in lock:
+                issues.append(Issue("warning", "stale-lock", where,
+                                    f"lock was rolled back to {lock['rollback']['from_rev']}; "
+                                    ".tareq/skills.yaml was not modified"))
+            else:
+                err("stale-lock", "config_hash does not match .tareq/skills.yaml")
     if cat is None:
         return issues
     for e in lock["skills"]:
@@ -560,8 +607,8 @@ def check_lock(lock: dict, cat: Catalog | None, where: str,
     auto = sum(effective_invocation(sid, cat) == "auto" for sid in known)
     if lock["budget"]["used"] != auto:
         err("budget-mismatch", f"budget.used is {lock['budget']['used']}, expected {auto}")
-    if config is not None and not any(i.severity == "error" for i in
-                                      check_project_config(config, cat, "config")):
+    if config is not None and "rollback" not in lock and not any(
+            i.severity == "error" for i in check_project_config(config, cat, "config")):
         expected, _ = resolve_project_skills(config, cat)
         actual = {e["id"]: e["via"] for e in lock["skills"]}
         if set(actual) != set(expected):
@@ -584,6 +631,116 @@ def _pack_closure(pack_id: str, packs: dict, _seen: frozenset = frozenset()) -> 
         if inc not in _seen:
             out |= {inc} | _pack_closure(inc, packs, _seen | {pack_id})
     return out
+
+
+# --------------------------------------------------------------------------- ownership (F4)
+
+# Single source of truth for what tareq-skills is ever allowed to claim, write, or remove in
+# a client project. A lock that claims anything else is forged or corrupt and is rejected.
+_SKILL_ID = r"[a-z0-9]+(?:-[a-z0-9]+)*"
+SKILLS_DIR = ".claude/skills"
+RULES_FILE = ".claude/rules/tareq-skills.md"
+GITIGNORE_FILE = ".tareq/.gitignore"
+LOCK_REL = ".tareq/skills.lock"
+HISTORY_REL = ".tareq/history.md"
+CLAUDE_SETTINGS = ".claude/settings.json"
+OPENCODE_SETTINGS = "opencode.json"
+SETTINGS_FILES = (CLAUDE_SETTINGS, OPENCODE_SETTINGS)
+MANUAL_CLAUDE_VALUE = "user-invocable-only"
+MANUAL_OPENCODE_VALUE = "ask"
+_GENERATED_RE = re.compile(
+    rf"^(?:{re.escape(SKILLS_DIR)}/({_SKILL_ID})/.+|{re.escape(RULES_FILE)}|"
+    rf"\.tareq/SKILLS-{_SKILL_ID}\.md|{re.escape(GITIGNORE_FILE)})$")
+
+
+def clean_segments(rel: str) -> bool:
+    """True for a normalized project-relative posix path: no empty/'.'/'..' segments, no
+    backslashes or NULs."""
+    if not rel or rel.startswith("/") or "\\" in rel or "\x00" in rel:
+        return False
+    return all(part not in ("", ".", "..") for part in rel.split("/"))
+
+
+def is_generated_path(rel: str) -> bool:
+    """Paths tareq-skills may ever record as generated (and therefore own)."""
+    return clean_segments(rel) and _GENERATED_RE.match(rel) is not None
+
+
+def owned_skill_id(rel: str) -> str | None:
+    m = _GENERATED_RE.match(rel) if clean_segments(rel) else None
+    return m.group(1) if m else None
+
+
+def is_touchable_path(rel: str) -> bool:
+    """Every path a sync/rollback transaction may write, back up, or delete."""
+    return is_generated_path(rel) or rel in (LOCK_REL, HISTORY_REL, *SETTINGS_FILES)
+
+
+def mapping_hash_of(file_hashes: dict[str, str]) -> str:
+    """Directory hash from {relative path: 'sha256:<hex>'} (same algorithm as content_hash)."""
+    lines = [f"{rel}\0{h.split(':', 1)[1]}\n" for rel, h in sorted(file_hashes.items())]
+    return "sha256:" + hashlib.sha256("".join(lines).encode()).hexdigest()
+
+
+def owned_key_allowed(file: str, key: tuple, value, skill_ids: set[str]) -> bool:
+    if file == CLAUDE_SETTINGS:
+        return (len(key) == 2 and key[0] == "skillOverrides" and key[1] in skill_ids
+                and value == MANUAL_CLAUDE_VALUE)
+    if file == OPENCODE_SETTINGS:
+        return (len(key) == 3 and key[:2] == ("permission", "skill") and key[2] in skill_ids
+                and value == MANUAL_OPENCODE_VALUE)
+    return False
+
+
+def owned_item_allowed(file: str, key: tuple, value) -> bool:
+    return file == OPENCODE_SETTINGS and key == ("instructions",) and value == RULES_FILE
+
+
+def check_lock_ownership(lock: dict, where: str) -> list[Issue]:
+    """Reject forged ownership claims in a schema-valid lock (R-12, R-18)."""
+    issues: list[Issue] = []
+    err = lambda code, msg: issues.append(Issue("error", code, where, msg))  # noqa: E731
+    ids = {e["id"] for e in lock["skills"]}
+    seen: set[str] = set()
+    per_skill: dict[str, dict[str, str]] = {}
+    for g in lock["generated"]:
+        path = g["path"]
+        if path in seen:
+            err("ownership-forged", f"'{path}' is listed twice in lock.generated")
+        seen.add(path)
+        if not is_generated_path(path):
+            err("ownership-forged", f"lock claims ownership of '{path}', which tareq-skills "
+                                    "never generates")
+            continue
+        sid = owned_skill_id(path)
+        if sid is None:
+            continue
+        if sid not in ids:
+            err("ownership-forged", f"'{path}' is in skill directory '{sid}', which is not "
+                                    "registered in lock.skills")
+            continue
+        per_skill.setdefault(sid, {})[path[len(SKILLS_DIR) + len(sid) + 2:]] = g["hash"]
+    for e in lock["skills"]:
+        mine = per_skill.get(e["id"], {})
+        if "SKILL.md" not in mine:
+            err("ownership-forged", f"lock skill '{e['id']}' has no generated SKILL.md")
+        elif mapping_hash_of(mine) != e["output_hash"]:
+            err("ownership-inconsistent",
+                f"output_hash of '{e['id']}' does not match its generated file hashes")
+    files_seen: set[str] = set()
+    for s in lock["settings"]:
+        if s["file"] in files_seen:
+            err("ownership-forged", f"settings file '{s['file']}' is listed twice")
+        files_seen.add(s["file"])
+        for k in s["keys"]:
+            if not owned_key_allowed(s["file"], tuple(k["key"]), k["value"], ids):
+                err("ownership-forged", f"lock claims ownership of {s['file']} key "
+                                        f"{'.'.join(k['key'])}, which tareq-skills never sets")
+        for i in s["list_items"]:
+            if not owned_item_allowed(s["file"], tuple(i["key"]), i["value"]):
+                err("ownership-forged", f"lock claims ownership of {s['file']} list "
+                                        f"{'.'.join(i['key'])}, which tareq-skills never edits")
+    return issues
 
 
 # --------------------------------------------------------------------------- CLI

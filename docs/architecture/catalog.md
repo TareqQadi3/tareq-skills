@@ -139,5 +139,6 @@ Limitation: `catalog.commit` is format-checked only; matching it to the library 
 is part of sync (M3).
 
 Rollback = restore a previous committed lock (and the catalog commit it names); because
-every input is pinned and hashed, the generated output is reproducible. Lock generation,
-sync, and rollback commands are M3.
+every input is pinned and hashed, the generated output is reproducible. Lock version 2
+fields (`generated`, `settings`, `output_hash`, `plan_fingerprint`, `rollback`) and the
+sync/rollback commands are described in [`manager.md`](manager.md).

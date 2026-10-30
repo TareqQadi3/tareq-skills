@@ -46,11 +46,11 @@ Each milestone starts only after the owner approves the previous one (merged PR)
 | M2 | Read official Claude Code and OpenCode docs; adapter requirements | M1 | One requirements section per tool with verified paths, fields, discovery, permissions; O-05 and O-09 decided. |
 | M3 | Minimum manager: `scan`, `select`, lock generation, approval-gated `sync`, `rollback`, intake of skills/notes/lessons, project history templates, both adapters | M2 | End-to-end on a synthetic project: detect → propose → approve → lock → generate → roll back; tests on real behavior. |
 | M4 | Seed library: review and import only the skills SMMS needs (copy, `SOURCE.txt`, pinned SHA); default `core` pack contents | M3; owner approval per skill | Each import reviewed (security, license, overlap) and approved; catalog validates. |
-| M5 | SMMS pilot (SMMS as client) | M4; owner approval to touch SMMS | SMMS runs from lock; enabled descriptions and context cost measured before/after; owner confirms the workflow is usable. |
+| M5 | SMMS pilot (SMMS as client) | M4; owner approval to touch SMMS; an approval channel that works in the owner's environment (O-15) | SMMS runs from lock; enabled descriptions and context cost measured before/after; owner confirms the workflow is usable. |
 | M6 | Expansion: remaining requested repos (O-07), cross-project adoption proposals, tooling (O-08) | M5 accepted | Driven by pilot findings; each addition approved. |
 | M7 | CI and quality: tests on PRs, secret scanning, schema/link checks | M1 (can start any time after) | CI green on PRs. |
 
-## M3 plan (authorized to start after PR #3 is merged — D-25)
+## M3 plan (implemented; see `architecture/manager.md`)
 
 One work package on `claude/m3-manager`; Python only (D-17). Requirements: R-01…R-20 in
 [`architecture/adapters.md`](architecture/adapters.md).
@@ -64,7 +64,10 @@ One work package on `claude/m3-manager`; Python only (D-17). Requirements: R-01�
 | Manager skill | `tareq-skill/SKILL.md`: owner rules, when to run each command, approval steps. |
 | Tests | Unit tests per command; end-to-end on a temp synthetic project (scan → select → plan → apply → verify hashes → manual edit preserved → collision blocks → rollback); live Claude Code probe of generated output. OpenCode: documented only, NOT TESTED. |
 
-Acceptance: the M3 row above, plus every R-12…R-20 safeguard has a failing-path test.
+Acceptance: the M3 row above, plus every R-12…R-26 safeguard has a failing-path test and a
+mutation check (`tests/mutation_check.py`).
+Review outcome (D-26, D-27): approval is enforced by the tool on the controlling terminal
+(unsupported environments fail closed), with project locking and crash recovery.
 Authored skills follow D-23 (validator: `source.type: local` is exempt from the license
 allowlist; review still required).
 

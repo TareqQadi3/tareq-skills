@@ -4,7 +4,7 @@ Centralized, reusable skills library for all of Tareq's current and future proje
 with a reusable manager skill (`tareq-skill`) that selects and activates the best
 compatible skills per project, for **Claude Code** and **OpenCode**.
 
-> Status: **M2 — agent integration requirements**. No skills have been imported yet. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current state.
+> Status: **M3 — minimum manager (`bin/tareq`)**. No skills have been imported yet. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the current state.
 
 ## Why
 
@@ -37,10 +37,10 @@ This repository is the single, versioned source of truth that fixes those proble
 |---|---|---|
 | `library/<category>/<skill>/` | Verbatim skill copies + `SOURCE.txt` | M4 |
 | `catalog/` | `skills.yaml`, `stacks.yaml`, `packs/`, `overlays/`, `schema/` | M1 |
-| `tareq-skill/` | The manager skill (`SKILL.md` + scripts) | M3 |
-| `bin/` | `validate_catalog.py` (M1); `scan`, `select`, `sync`, `audit`, `doctor`, `rollback` (M3) | M1, M3 |
-| `tests/` | Validator tests and synthetic fixtures | M1 |
-| `templates/` | Client project templates (skills manifest, project log, instructions) | M3 |
+| `tareq-skill/` | The manager skill (`SKILL.md`): operator guide for agents | M3 |
+| `bin/` | `validate_catalog.py` (M1); `tareq` CLI + `tareqlib/`: `scan`, `select`, `sync`, `doctor`, `rollback`, `recover`, `add-skill`, `note` (M3) | M1, M3 |
+| `tests/` | Validator and manager tests, synthetic fixtures, opt-in live Claude Code test | M1, M3 |
+| `templates/` | Generated project files: rules pointer, category register, history | M3 |
 | `docs/` | Handoff, project log, decisions, roadmap, architecture | M0 |
 | `CLAUDE.md` | Permanent working rules for AI agents in this repo | M0 |
 
@@ -57,6 +57,8 @@ Client projects will hold `.tareq/skills.yaml` (selected packs/skills) and
 - [`docs/architecture/overview.md`](docs/architecture/overview.md) — approved architecture
 - [`docs/architecture/catalog.md`](docs/architecture/catalog.md) — catalog data model and validation rules
 - [`docs/architecture/adapters.md`](docs/architecture/adapters.md) — Claude Code / OpenCode integration requirements
+- [`docs/architecture/manager.md`](docs/architecture/manager.md) — `bin/tareq` commands, project layout, transaction/recovery, safeguards
+- [`docs/architecture/approval.md`](docs/architecture/approval.md) — tool-enforced approval and supported environments
 - [`docs/TAREQ-SKILLS-PROJECT-HANDOFF.md`](docs/TAREQ-SKILLS-PROJECT-HANDOFF.md) — original handoff (Arabic, authoritative history; do not edit)
 
 ## License

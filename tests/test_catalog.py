@@ -244,6 +244,15 @@ class TestCatalogRules(Base):
             license_exception={"approved_by": "owner", "date": "2026-10-29", "reason": "test"}))
         self.assertNotIn("license-not-accepted", codes(self.ws.validate()))
 
+    def test_authored_local_skill_exempt_from_license_allowlist(self):
+        # D-23: demo-project-review is source.type local.
+        self.ws.edit_skill("demo-project-review", lambda s: s["source"].update(license=None))
+        self.assertNotIn("license-not-accepted", codes(self.ws.validate()))
+
+    def test_third_party_skill_not_exempt(self):
+        self.ws.edit_skill("demo-testing-base", lambda s: s["source"].update(license=None))
+        self.assertError("license-not-accepted")
+
     def test_offensive_active_skill_must_be_isolated(self):
         self.ws.edit_skill("demo-pentest", lambda s: s["risk"].update(isolated_env_only=False))
         self.assertError("offensive-unrestricted")
@@ -298,6 +307,16 @@ class TestContentIntegrity(Base):
             self.ws.skill(d, "demo-pentest")["source"]["content_hash"] = h
         self.ws.edit("catalog/skills.yaml", same)
         self.assertIn("duplicate-content", codes(self.ws.validate(), "warning"))
+
+    def test_skill_md_name_must_equal_id(self):
+        md = self._skill_md()
+        md.write_text(md.read_text().replace("name: demo-testing-base", "name: other-name"))
+        self.assertError("name-mismatch")
+
+    def test_skill_md_needs_frontmatter(self):
+        md = self._skill_md()
+        md.write_text("no frontmatter here\n")
+        self.assertError("frontmatter-invalid")
 
     def test_unsafe_detection_glob(self):
         self.ws.edit("catalog/stacks.yaml",
@@ -534,7 +553,7 @@ class TestProjectConfigAndLock(Base):
                                 "source": {"type": "upstream", "url": "https://example.com/ui-review",
                                            "commit": "a" * 40},
                                 "content_hash": "sha256:" + "2" * 64, "license": "Apache-2.0",
-                                "via": ["include"]})
+                                "via": ["include"], "output_hash": "sha256:" + "2" * 64})
         self.ws.edit("project/.tareq/skills.lock", add_conflict)
         self.assertError("unresolved-conflict", with_project=True)
 
@@ -568,6 +587,22 @@ class TestProjectConfigAndLock(Base):
     def test_lock_targets_drift(self):
         self.ws.edit("project/.tareq/skills.lock", lambda d: d.update(targets=["claude-code"]))
         self.assertError("lock-drift", with_project=True)
+
+    def test_rolled_back_lock_reports_config_difference_as_warning(self):
+        self.ws.edit("project/.tareq/skills.lock", lambda d: d.update(rollback={"from_rev": "abc123"}))
+        self.ws.edit("project/.tareq/skills.yaml", lambda d: d["budget"].update(max_descriptions=9))
+        issues = self.ws.validate(with_project=True)
+        self.assertNotIn("stale-lock", codes(issues))
+        self.assertIn("stale-lock", codes(issues, "warning"))
+
+    def test_lock_v1_rejected(self):
+        self.ws.edit("project/.tareq/skills.lock", lambda d: d.update(lock_version=1))
+        self.assertError("schema", with_project=True)
+
+    def test_lock_generated_path_must_be_safe(self):
+        self.ws.edit("project/.tareq/skills.lock",
+                     lambda d: d["generated"].append({"path": "../outside", "hash": "sha256:" + "0" * 64}))
+        self.assertError("schema", with_project=True)
 
     def test_lock_budget_used_over_max(self):
         self.ws.edit("project/.tareq/skills.lock", lambda d: d["budget"].update(used=11))
