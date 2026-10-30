@@ -1,0 +1,6 @@
+schema_version: 1
+id: backend-java
+description: Synthetic Spring Boot pack.
+skills: [demo-spring-guide]
+includes: [core]
+stacks: [spring-boot]

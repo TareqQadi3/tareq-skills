@@ -1,0 +1,7 @@
+# Invalid: unknown target, budget below minimum, missing catalog.ref, unknown field.
+schema_version: 1
+project: demo-app
+catalog: {repo: "https://github.com/TareqQadi3/tareq-skills"}
+budget: {max_descriptions: 0}
+targets: [cursor]
+auto_update: true

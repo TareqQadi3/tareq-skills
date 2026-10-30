@@ -20,3 +20,31 @@ Meaningful milestones and results only. Newest last.
   handoff archived verbatim (SHA-256 `20b62e6f…0188`).
 - Branch protection on `main`: see `docs/HANDOFF.md` (not configurable from this session).
 - Session model: `claude-opus-5-5` (from session metadata). No subagents used.
+
+## 2026-10-29 — M0 merged
+
+- PR #1 merged to `main` (merge commit `5e3366a`); content identical to PR head `d4f35ca`.
+- `main` branch protection: not configured (`protected: false`); owner action pending.
+
+## 2026-10-29 — M1: catalog schema and validation
+
+- Decisions recorded: D-14 budget (hard max 40, not a target), D-15 licenses, D-16 conflict
+  priority, D-17 Python, D-18 strategy (`implementation-plan.md`).
+- Delivered: 7 JSON Schemas (`catalog/schema/`), `catalog/skills.yaml` (empty),
+  `catalog/stacks.yaml` (11 stacks), `bin/validate_catalog.py`, `tests/` (61 tests, synthetic
+  fixtures), `docs/architecture/catalog.md`, `docs/implementation-plan.md`; `roadmap.md`
+  reduced to a status tracker.
+- Tests: 61/61 PASS. Mutation check (license rule and pack-cycle rule disabled) made the
+  matching tests fail, confirming they test real behavior.
+- No skills imported; no existing skill or project touched.
+
+## 2026-10-30 — M1 pre-merge review
+
+- Fixed: priority resolution depended on id spelling in conflict chains (now visited by
+  priority, then id); lock was not checked against the configuration (`lock-drift`) or for
+  version/license/source/budget/used-pack consistency; library content hashes were never
+  computed (`content-hash-mismatch`, `missing-content`, symlinks rejected); duplicate skill
+  names; unsafe detection/overlay globs.
+- Tests: 88/88 PASS. Mutation checks: old resolution algorithm, disabled content-hash,
+  lock-drift, and path checks each make their matching tests fail.
+- O-06 and O-07 moved to M6 per D-18; candidate repos and tools remain listed in O-07.

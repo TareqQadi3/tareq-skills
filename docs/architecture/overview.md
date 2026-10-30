@@ -1,7 +1,7 @@
 # Architecture overview (M0)
 
-Approved concepts only. Detailed schemas are defined in M1; adapter designs in M2.
-Anything not listed here is not yet designed.
+Approved concepts only. Data model and validation rules: [`catalog.md`](catalog.md) (M1).
+Adapter designs follow in M2. Anything not listed here is not yet designed.
 
 ## Components
 
@@ -28,11 +28,10 @@ Anything not listed here is not yet designed.
 
 1. **Scan** — fingerprint the project (e.g. `pom.xml` → Java/Spring, `package.json` with
    `next`, Flyway/Postgres, Arabic/RTL).
-2. **Select** — match packs to stacks and task type; resolve conflicts (order is open
-   decision O-04); respect the context budget (O-02).
+2. **Select** — match packs to stacks and task type; resolve conflicts (D-16); respect the context budget (D-14).
 3. **Propose** — show the owner options with comparison and recommendation; record the
    decision in the project log.
-4. **Sync** — write the lock file and generate adapter output.
+4. **Sync** — only after explicit owner approval: write the lock file and generate adapter output.
 5. **Audit / doctor / rollback** — conflicts and context cost, health checks, return to a
    previous lock.
 

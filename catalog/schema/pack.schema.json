@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pack.schema.json",
+  "title": "Skill pack (catalog/packs/<id>.yaml)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "description", "skills"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"$ref": "common.schema.json#/$defs/id"},
+    "description": {"type": "string", "minLength": 1},
+    "skills": {"$ref": "common.schema.json#/$defs/idList"},
+    "includes": {"$ref": "common.schema.json#/$defs/idList"},
+    "stacks": {"$ref": "common.schema.json#/$defs/idList"},
+    "default": {"type": "boolean"}
+  }
+}

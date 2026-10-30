@@ -1,0 +1,18 @@
+# Skill catalog. Metadata only; skill content lives in library/<category>/<id>/.
+# Schema: catalog/schema/skills.schema.json. Rules: docs/architecture/catalog.md.
+# Intentionally empty until reviewed imports (M4).
+schema_version: 1
+categories:
+  - backend
+  - frontend
+  - design
+  - testing
+  - security
+  - devops
+  - data
+  - marketing
+  - content
+  - integrations
+  - productivity
+  - meta
+skills: []

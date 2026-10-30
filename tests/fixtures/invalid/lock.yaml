@@ -1,0 +1,15 @@
+# Invalid: short commit, malformed hash, unknown via, missing config_hash.
+lock_version: 1
+generated_at: "2026-10-29T12:00:00Z"
+project: demo-app
+catalog: {repo: "https://github.com/TareqQadi3/tareq-skills", commit: "5e3366a"}
+budget: {max_descriptions: 10, used: 1}
+targets: [claude-code]
+packs: []
+skills:
+  - id: demo-testing-base
+    version: "1.2.0"
+    source: {type: upstream, url: "https://example.com/testing-base", commit: "cccccccccccccccccccccccccccccccccccccccc"}
+    content_hash: "md5:abc"
+    license: ISC
+    via: [auto]

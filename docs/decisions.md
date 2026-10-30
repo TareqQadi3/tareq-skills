@@ -19,20 +19,21 @@ Source of truth for owner decisions. Section references (§) point to
 | D-10 | Repository stays private; no `LICENSE` file for now. | 2026-10-29 | M0 approval |
 | D-11 | Require Pull Requests for changes to `main` (branch protection, if GitHub permits). | 2026-10-29 | M0 approval |
 | D-12 | The original handoff is preserved verbatim as `docs/TAREQ-SKILLS-PROJECT-HANDOFF.md`; `docs/HANDOFF.md` is its concise, living counterpart. | 2026-10-29 | M0 approval |
+| D-13 | Keep the approved names (`tareq-skills`, `tareq-skill`, §3 layout); library-level skill status values are `candidate`, `active`, `disabled` (§3). Resolves O-01, O-11. | 2026-10-29 | §3, M1 planning |
+| D-14 | Description budget (O-02): 40 enabled auto-invoked descriptions is a configurable **hard maximum, not a target**; always select the smallest suitable set. Default pack contents are chosen at M4. | 2026-10-29 | M1 approval |
+| D-15 | License policy (O-03): accept MIT, Apache-2.0, BSD (2/3-Clause, 0BSD), ISC. Missing or other licenses stay `candidate` and need an explicit owner exception to activate; missing license ≠ permission. | 2026-10-29 | M1 approval |
+| D-16 | Conflict priority (O-04): project → technology (stack) → general. Same-level conflicts go to the owner; never decided by recency, popularity, or license clarity. "Latest" applies only to versions of the same skill. | 2026-10-29 | M1 approval |
+| D-17 | Implementation language (O-13): Python 3 + PyYAML + jsonschema; no other language without a concrete reason and approval. | 2026-10-29 | M1 approval |
+| D-18 | Strategy: smallest operational version first, validated on SMMS before expansion; see `implementation-plan.md` (capabilities, deferred features, milestones). | 2026-10-29 | M1 approval |
 
 ## Open
 
 | ID | Question | Current recommendation | Needed by |
 |---|---|---|---|
-| O-01 | Final folder and file names (after first working draft). | Keep §3 layout. | M1 |
-| O-02 | Context budget cap and default packs (`core` contents). | ≈ 40 active descriptions (estimate). | M1 |
-| O-03 | License policy: which licenses are accepted; handling of unlicensed skills. | Record every license; isolate non-redistributable ones. | M1 |
-| O-04 | Conflict resolution order. | project-specific → stack-specific → general → newest → clearest license. | M1 |
 | O-05 | Claude Code distribution: pinned copies in `.claude/skills/`, private plugin marketplace, or both. | Decide after M2 doc review. | M2 |
-| O-06 | `disable-model-invocation: true` for `arena` and similar costly skills. | Yes (manual-only). | M4 |
-| O-07 | Fate of the 8 requested external repos (emilkowalski, impeccable, taste-skill, roast-room, marketingskills, instagram, youtube, arena-skill-16) and figma / playwright MCP. | Review one by one before any import. | M4 |
+| O-06 | `disable-model-invocation: true` for `arena` and similar costly skills. | Yes (manual-only). | M6 |
+| O-07 | Fate of the 8 requested external repos (emilkowalski, impeccable, taste-skill, roast-room, marketingskills, instagram, youtube, arena-skill-16) and figma / playwright MCP. | Review one by one before any import; deferred until after the SMMS pilot (D-18). | M6 |
 | O-08 | Browser, testing, and security tooling choices. | Evaluate step by step. | M6 |
 | O-09 | How clients consume the library (clone, submodule, subtree, sync script, plugin). | Decide after M2. | M2–M3 |
 | O-10 | SMMS skills cleanup (what to disable/merge). | Separate SMMS-track decision after M5. | M5 |
-| O-11 | Repository/skill naming confirmation. | Keep `tareq-skills` / `tareq-skill`. | M1 |
 | O-12 | Allow the OpenCode docs domain in the session network policy. | Required to verify the OpenCode adapter. | M2 |

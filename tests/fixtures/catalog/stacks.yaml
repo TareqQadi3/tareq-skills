@@ -1,0 +1,13 @@
+# SYNTHETIC test fixture.
+schema_version: 1
+stacks:
+  - id: java
+    name: Java
+    detect: {any: [{file: "**/pom.xml"}]}
+  - id: spring-boot
+    name: Spring Boot
+    detect: {all: [{file_contains: {glob: "**/pom.xml", pattern: "spring-boot"}}]}
+    implies: [java]
+  - id: nextjs
+    name: Next.js
+    detect: {any: [{dependency: {ecosystem: npm, name: next}}]}
