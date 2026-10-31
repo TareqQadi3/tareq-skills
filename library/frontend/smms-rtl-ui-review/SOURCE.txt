@@ -1,0 +1,4 @@
+origin: internal / authored by the owner
+derived-from: https://github.com/TareqQadi3/smms-final @ a21bfb8872bf7d961589b5b0a3a50652eb4adb6e
+fetched: 2026-10-31
+note: copied verbatim; scripts were not executed

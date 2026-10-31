@@ -1,0 +1,5 @@
+origin: https://github.com/obra/superpowers
+commit: b9e75dddec7a384f42ce08532ec17bb1ef5d9459
+license: MIT
+fetched: 2026-10-31
+note: copied verbatim; scripts were not executed

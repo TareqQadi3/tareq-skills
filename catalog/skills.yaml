@@ -3,16 +3,186 @@
 # Intentionally empty until reviewed imports (M4).
 schema_version: 1
 categories:
-  - backend
-  - frontend
-  - design
-  - testing
-  - security
-  - devops
-  - data
-  - marketing
-  - content
-  - integrations
-  - productivity
-  - meta
-skills: []
+- backend
+- frontend
+- design
+- testing
+- security
+- devops
+- data
+- marketing
+- content
+- integrations
+- productivity
+- meta
+skills:
+- id: systematic-debugging
+  name: systematic-debugging
+  category: testing
+  path: library/testing/systematic-debugging
+  scope: general
+  version: 6.1.1
+  source:
+    type: upstream
+    url: https://github.com/obra/superpowers
+    commit: c8921b5156562b61af253150a4d1d01a71705be8
+    license: MIT
+    fetched_at: '2026-10-31'
+    content_hash: sha256:cd2ed6231b33ce316de5d3be85a9d2bf5a54b34f2ab06fa62ce7e12be9204453
+  status: active
+  review:
+    state: approved
+    reviewed_by: tareq (owner approval O-17); prepared by Claude Code, self-reported claude-sonnet-5-5
+    date: '2026-10-31'
+  cost:
+    description_chars: 91
+    description_tokens_est: 23
+  invocation: auto
+- id: test-driven-development
+  name: test-driven-development
+  category: testing
+  path: library/testing/test-driven-development
+  scope: general
+  version: 6.1.1
+  source:
+    type: upstream
+    url: https://github.com/obra/superpowers
+    commit: b9e75dddec7a384f42ce08532ec17bb1ef5d9459
+    license: MIT
+    fetched_at: '2026-10-31'
+    content_hash: sha256:41ecc8ca88329e6b7d244cdd0b88e8cafe22927a0fd3907db1aeabdcbba81566
+  status: active
+  review:
+    state: approved
+    reviewed_by: tareq (owner approval O-17); prepared by Claude Code, self-reported claude-sonnet-5-5
+    date: '2026-10-31'
+  cost:
+    description_chars: 79
+    description_tokens_est: 20
+  invocation: auto
+- id: smms-tenant-isolation
+  name: smms-tenant-isolation
+  category: security
+  path: library/security/smms-tenant-isolation
+  scope: project
+  project: smms
+  version: 1.1.0
+  source:
+    type: local
+    license: null
+    fetched_at: '2026-10-31'
+    content_hash: sha256:2af8d12c88359d9af3bd5a2d0e867fa88f795c9cbbdbd454707a250b322f300d
+    url: https://github.com/TareqQadi3/smms-final
+    commit: a21bfb8872bf7d961589b5b0a3a50652eb4adb6e
+  status: candidate
+  review:
+    state: pending
+  cost:
+    description_chars: 333
+    description_tokens_est: 84
+  invocation: auto
+- id: smms-security-review
+  name: smms-security-review
+  category: security
+  path: library/security/smms-security-review
+  scope: project
+  project: smms
+  version: 1.1.0
+  source:
+    type: local
+    license: null
+    fetched_at: '2026-10-31'
+    content_hash: sha256:3f9c82e4db6edfd816a271bebd26c5860032972dbc17da8200f2364a983a12bd
+    url: https://github.com/TareqQadi3/smms-final
+    commit: a21bfb8872bf7d961589b5b0a3a50652eb4adb6e
+  status: candidate
+  review:
+    state: pending
+  cost:
+    description_chars: 306
+    description_tokens_est: 77
+  invocation: auto
+- id: smms-database-safety
+  name: smms-database-safety
+  category: data
+  path: library/data/smms-database-safety
+  scope: project
+  project: smms
+  version: 1.1.0
+  source:
+    type: local
+    license: null
+    fetched_at: '2026-10-31'
+    content_hash: sha256:2e78052a43895025481ece8f74986e75b94d9ea945edec9a70dec79ac1c27d6f
+    url: https://github.com/TareqQadi3/smms-final
+    commit: a21bfb8872bf7d961589b5b0a3a50652eb4adb6e
+  status: candidate
+  review:
+    state: pending
+  cost:
+    description_chars: 255
+    description_tokens_est: 64
+  invocation: auto
+- id: smms-maintenance-workflows
+  name: smms-maintenance-workflows
+  category: backend
+  path: library/backend/smms-maintenance-workflows
+  scope: project
+  project: smms
+  version: 1.1.0
+  source:
+    type: local
+    license: null
+    fetched_at: '2026-10-31'
+    content_hash: sha256:df2d40aedf939a9846c64a1d2054012a22ed06b0a02a5609b3fadddaaa9ee26a
+    url: https://github.com/TareqQadi3/smms-final
+    commit: a21bfb8872bf7d961589b5b0a3a50652eb4adb6e
+  status: candidate
+  review:
+    state: pending
+  cost:
+    description_chars: 456
+    description_tokens_est: 114
+  invocation: auto
+- id: smms-rtl-ui-review
+  name: smms-rtl-ui-review
+  category: frontend
+  path: library/frontend/smms-rtl-ui-review
+  scope: project
+  project: smms
+  version: 1.1.0
+  source:
+    type: local
+    license: null
+    fetched_at: '2026-10-31'
+    content_hash: sha256:af1aec597196584b87217a98121fa965cd145ae18668cab379dc8507161b1f9f
+    url: https://github.com/TareqQadi3/smms-final
+    commit: a21bfb8872bf7d961589b5b0a3a50652eb4adb6e
+  status: candidate
+  review:
+    state: pending
+  cost:
+    description_chars: 370
+    description_tokens_est: 93
+  invocation: auto
+- id: smms-e2e-qa
+  name: smms-e2e-qa
+  category: testing
+  path: library/testing/smms-e2e-qa
+  scope: project
+  project: smms
+  version: 1.1.0
+  source:
+    type: local
+    license: null
+    fetched_at: '2026-10-31'
+    content_hash: sha256:bde59ea9bb1b8ae7966e32f26b48a26bd8f25a8588a623532097367760b3ccb1
+    url: https://github.com/TareqQadi3/smms-final
+    commit: a21bfb8872bf7d961589b5b0a3a50652eb4adb6e
+  status: candidate
+  review:
+    state: pending
+  cost:
+    description_chars: 311
+    description_tokens_est: 78
+  invocation: auto
