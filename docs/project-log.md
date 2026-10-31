@@ -125,3 +125,16 @@ approval (Option A, D-26, D-27).
 - Scratch dry run: validator 0 errors, `select` proposes `core`, `sync` plan ready with
   `--adopt`/`--approve-overwrite`. Apply NOT attempted (needs a terminal, D-26).
 - Nothing imported into the library; SMMS unchanged.
+
+## 2026-10-31 — M4: import and refresh
+
+- Owner approved O-16…O-19 (D-28…D-31).
+- Imported 8 skills with `tareq add-skill` (6 authored with `derived-from` SMMS `a21bfb8`, 2 upstream
+  MIT pins). Activated `systematic-debugging` and `test-driven-development`; packs `core` (default)
+  and `smms-core` created.
+- Rewrote the 6 SMMS skills (version 1.1.0) from the code of `claude/feature-program-1` instead of editing
+  the stale text: Flyway, new modules, role-scoped visibility, session tokens, uploads, RTL root, test plan
+  caveats. Path check: 163 cited paths, 0 really missing. They remain `candidate` (not reviewed by the owner).
+- Verification: unit tests 218 run, OK (1 opt-in skipped); validator 0 errors, 6 expected warnings
+  (candidates in `smms-core`); scratch trial on a copy of SMMS: R-12 blocks, `--approve-overwrite` makes the
+  plan ready, `smms-core` refused while candidates. Apply NOT attempted (D-26). SMMS repository unchanged.

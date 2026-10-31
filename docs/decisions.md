@@ -34,6 +34,10 @@ Source of truth for owner decisions. Section references (§) point to
 | D-25 | M3 is authorized to start after the owner merges PR #3. | 2026-10-30 | Owner approval |
 | D-26 | Approval is enforced by the tool itself (owner decision, M3 review, Option A): `--apply` requires a confirmation typed by a person on the controlling terminal, bound to the recomputed plan fingerprint; where none can be established it fails closed. A fingerprint is never proof of approval; no flag, environment variable, or alternate command skips the check; agent settings may add a layer but are not the enforcement. Supported and unsupported environments are documented in `architecture/approval.md`. | 2026-10-30 | M3 review |
 | D-27 | M3 review fixes F1-F6 approved: project lock, durable journal with crash recovery, no CLI `--home`, strict ownership allowlist with library corroboration, no symlink writes in `note`/`select --init`, and corrected R-19 wording (caught-exception rollback vs crash recovery vs power loss NOT TESTED). | 2026-10-30 | M3 review |
+| D-28 | M4 (O-16): import the 8 proposed SMMS skills as `candidate`; the 6 SMMS-authored skills count as internal/authored under D-23 (`source.type: local`, derived-from SMMS `a21bfb8`). | 2026-10-31 | Owner approval |
+| D-29 | M4 (O-17): `systematic-debugging` and `test-driven-development` (MIT, exact upstream pins) are `active`; only these two are active. | 2026-10-31 | Owner approval |
+| D-30 | M4 (O-18): the 6 SMMS project skills were refreshed against `claude/feature-program-1` (version 1.1.0) and stay `candidate` / review pending until the owner reviews them. | 2026-10-31 | Owner approval |
+| D-31 | M4 (O-19): pilot target is `claude-code` only; OpenCode stays deferred (NOT TESTED). | 2026-10-31 | Owner approval |
 
 ## Open
 
@@ -44,7 +48,3 @@ Source of truth for owner decisions. Section references (§) point to
 | O-08 | Browser, testing, and security tooling choices. | Evaluate step by step. | M6 |
 | O-10 | SMMS skills cleanup (what to disable/merge). | Separate SMMS-track decision after M5. | M5 |
 | O-15 | Out-of-band approval channel for the owner's iPhone + cloud-session environment, which cannot provide a controlling terminal (so apply is refused there). Options in `architecture/approval.md`. | Run `--apply` on a computer the owner controls for now; decide a remote channel before M5. | M5 |
-| O-16 | Import 8 SMMS skills into the library as `candidate` (6 SMMS-authored, 2 MIT general skills at exact upstream pins), and treat SMMS-authored skills as internal/authored under D-23. Detail: [`m4-smms-proposal.md`](m4-smms-proposal.md). | Approve. | M4 import PR |
-| O-17 | Activate the two general skills (`systematic-debugging`, `test-driven-development`) with automatic invocation. | Approve. | M4 import PR |
-| O-18 | Refresh the six SMMS project skills against `claude/feature-program-1` (they are stale: Flyway, inventory, notifications) before activation; new version 1.1.0, per-skill review. | Approve; they stay `candidate` until then. | M4 import PR |
-| O-19 | Targets for the SMMS pilot. | `claude-code` only (OpenCode is NOT TESTED). | M5 |

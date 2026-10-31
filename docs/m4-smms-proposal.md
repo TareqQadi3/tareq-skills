@@ -1,9 +1,10 @@
-# M4 — SMMS skill proposal (awaiting owner approval)
+# M4 — SMMS skill set (approved 2026-10-31; imported, not applied)
 
 Record for the M4 approval gate ("owner approval per skill", `implementation-plan.md`).
-Nothing in this document has been imported, installed, or applied. Once the owner decides,
-the result lives in the catalog and this file is retired. Inspected 2026-10-30 from
-`TareqQadi3/smms-final` (read-only clone) and the pinned upstream repositories.
+The owner approved O-16…O-19 (decisions D-28…D-31). The 8 skills are now in the library
+(`catalog/skills.yaml`, `library/`); nothing has been applied to SMMS. Sections 1-6 are the
+analysis as inspected on 2026-10-30 from `TareqQadi3/smms-final` (read-only clone) and the pinned
+upstream repositories; section 7 records the outcome.
 
 ## 1. SMMS as inspected
 
@@ -104,16 +105,39 @@ approval **simulated in the scratch copy only** and the two packs added → `val
 Applying was not attempted: it needs a person at a terminal (D-26), and this environment has
 none.
 
-## 7. Decisions and next action
+## 7. Outcome (2026-10-31)
 
-| ID | Decision needed | Recommendation |
-|---|---|---|
-| O-16 | Approve importing the 8 skills into the library as `candidate`, and confirm that skills the owner authored in SMMS count as "internal / authored" under D-23 | Approve |
-| O-17 | Activate the two general skills (MIT, exact upstream pins) with automatic invocation | Approve |
-| O-18 | Refresh the six project skills against Feature Program 1 before activating them (separate work package, new version 1.1.0 in this library, per-skill review) | Approve; they stay `candidate` until then |
-| O-19 | Targets for the SMMS pilot | `claude-code` only; OpenCode adds an untested `opencode.json` |
+| Decision | Result |
+|---|---|
+| D-28 (O-16) | 8 skills imported as `candidate`; the 6 SMMS skills are `source.type: local` with `derived-from` SMMS `a21bfb8` (D-23) |
+| D-29 (O-17) | `systematic-debugging` (obra/superpowers `c8921b5`, MIT) and `test-driven-development` (`b9e75dd`, MIT) are `active`, in the default `core` pack |
+| D-30 (O-18) | The 6 SMMS skills were rewritten against the code of `claude/feature-program-1` and are version 1.1.0; they stay `candidate` / review pending in pack `smms-core` |
+| D-31 (O-19) | Target `claude-code` only |
 
-Next action after the owner's reply: one PR that imports the approved skills with their
-provenance, the `core` and `smms-core` packs, and the activation state decided above.
-Applying anything to SMMS (M5) additionally needs O-15 (approval channel) and the O-10
-cleanup decision.
+What changed in the six skills (all checked against code at `a21bfb8`; 163 cited paths exist):
+Flyway replaces `init.sql` + `V2` as the migration mechanism (both profiles use `ddl-auto: validate`);
+inventory, procurement, materials, assets, PM, workflow and notifications now exist; work-order
+visibility is role-scoped by `WorkOrderAccessPolicy` (not only the technician); refresh tokens carry
+`typ` and are refused as Bearer; login throttling is wired; uploads check magic bytes; passwords travel in a
+JSON body; `<html dir="rtl">` is set at the root; the QA test plan is out of date and treated as hypotheses.
+Previously reported "leads" that are fixed were removed; open questions were turned into checks.
+
+Scratch trial (copy of SMMS, plan only, nothing written): `core` plan is blocked by R-12 (the two skills
+exist unmanaged); `--adopt` is still blocked on the two `SOURCE.txt` files (they differ: the SMMS copies
+cite `spruvex-r`, the library cites upstream); with `--approve-overwrite` for both the plan is
+**ready** (0 to 2 of 40, 15 files overwritten, the other 109 skills untouched). Requesting `smms-core`
+is refused (`inactive-skill-selected`) while its skills are candidates, which is the intended safeguard.
+
+## 8. First real SMMS trial: remaining steps
+
+1. Owner merges this PR (library commit becomes pinned; the plan uses the full commit SHA).
+2. Owner reviews the six SMMS skills; each approved one is switched to `active` in a small PR
+   (only then can `smms-core` be synchronized).
+3. Owner decides O-15 (a terminal the owner controls, or another approval channel); applying is
+   impossible from the iPhone / cloud session (D-26).
+4. In SMMS, on a new branch (needs owner approval to touch SMMS): add `.tareq/skills.yaml`
+   (`packs: [core]`, later `[core, smms-core]`, `targets: [claude-code]`) and run
+   `tareq sync` with `--approve-overwrite` for the two general skills, review the plan, then `--apply`
+   on the terminal. Review the diff in SMMS before merging it there.
+5. O-10 (disable or merge the other 103 skills) is a separate later decision; until then the
+   context cost does not drop.
