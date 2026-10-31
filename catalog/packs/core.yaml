@@ -1,0 +1,7 @@
+schema_version: 1
+id: core
+description: Engineering process skills useful in every project (default).
+skills:
+- systematic-debugging
+- test-driven-development
+default: true

@@ -131,5 +131,5 @@ opt-in because it calls the model. OpenCode is not installed, so its output is d
 - Rollback needs the client project to be a git repository holding the earlier lock.
 - `select` is rule-based (stacks, packs, tags). Task-aware AI recommendation is deferred.
 - The manager skill (`tareq-skill/`) is not yet a catalog entry, so it is not distributed
-  by sync. Cataloging it is part of seeding (M4).
+  by sync. It was not part of the approved M4 set; cataloging it is deferred until the owner asks.
 - `add-skill` edits the tareq-skills repository and is not covered by the project lock.

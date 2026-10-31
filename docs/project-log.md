@@ -108,3 +108,33 @@ approval (Option A, D-26, D-27).
   Power-loss durability and a real person typing on a real device: NOT TESTED. OpenCode: NOT TESTED.
 - In this cloud session the real CLI refuses `--apply` (exit 2): the owner's iPhone + cloud
   environment cannot approve a sync. Decision O-15.
+
+## 2026-10-30 — M4: SMMS seed proposal (preparation only)
+
+- M3 merged (PR #4, `ef45bff`). SMMS inspected read-only at `claude/feature-program-1`
+  (`a21bfb8`); `main` is stale and has no skills.
+- Findings: the six SMMS project skills are stale (Flyway, inventory, notifications); all 86
+  skills with `SOURCE.txt` are byte-identical to `spruvex-r@86b8eac`, which ships no license files;
+  exact MIT upstream commits found for `systematic-debugging` and `test-driven-development`.
+  A plaintext credential is committed in SMMS (reported, not touched).
+- Proposed 8 of 111 skills (2,014 description characters; budget 8/40). Detail:
+  `m4-smms-proposal.md`.
+- Manager fixes: `scan` no longer reads skill directories as project files (was reporting
+  Python/Node); `add-skill --authored` can record the origin it was derived from. Tests and
+  mutation entries added.
+- Scratch dry run: validator 0 errors, `select` proposes `core`, `sync` plan ready with
+  `--adopt`/`--approve-overwrite`. Apply NOT attempted (needs a terminal, D-26).
+- Nothing imported into the library; SMMS unchanged.
+
+## 2026-10-31 — M4: import and refresh
+
+- Owner approved O-16…O-19 (D-28…D-31).
+- Imported 8 skills with `tareq add-skill` (6 authored with `derived-from` SMMS `a21bfb8`, 2 upstream
+  MIT pins). Activated `systematic-debugging` and `test-driven-development`; packs `core` (default)
+  and `smms-core` created.
+- Rewrote the 6 SMMS skills (version 1.1.0) from the code of `claude/feature-program-1` instead of editing
+  the stale text: Flyway, new modules, role-scoped visibility, session tokens, uploads, RTL root, test plan
+  caveats. Path check: 163 cited paths, 0 really missing. They remain `candidate` (not reviewed by the owner).
+- Verification: unit tests 218 run, OK (1 opt-in skipped); validator 0 errors, 6 expected warnings
+  (candidates in `smms-core`); scratch trial on a copy of SMMS: R-12 blocks, `--approve-overwrite` makes the
+  plan ready, `smms-core` refused while candidates. Apply NOT attempted (D-26). SMMS repository unchanged.

@@ -34,6 +34,10 @@ Source of truth for owner decisions. Section references (§) point to
 | D-25 | M3 is authorized to start after the owner merges PR #3. | 2026-10-30 | Owner approval |
 | D-26 | Approval is enforced by the tool itself (owner decision, M3 review, Option A): `--apply` requires a confirmation typed by a person on the controlling terminal, bound to the recomputed plan fingerprint; where none can be established it fails closed. A fingerprint is never proof of approval; no flag, environment variable, or alternate command skips the check; agent settings may add a layer but are not the enforcement. Supported and unsupported environments are documented in `architecture/approval.md`. | 2026-10-30 | M3 review |
 | D-27 | M3 review fixes F1-F6 approved: project lock, durable journal with crash recovery, no CLI `--home`, strict ownership allowlist with library corroboration, no symlink writes in `note`/`select --init`, and corrected R-19 wording (caught-exception rollback vs crash recovery vs power loss NOT TESTED). | 2026-10-30 | M3 review |
+| D-28 | M4 (O-16): import the 8 proposed SMMS skills as `candidate`; the 6 SMMS-authored skills count as internal/authored under D-23 (`source.type: local`, derived-from SMMS `a21bfb8`). | 2026-10-31 | Owner approval |
+| D-29 | M4 (O-17): `systematic-debugging` and `test-driven-development` (MIT, exact upstream pins) are `active`; only these two are active. | 2026-10-31 | Owner approval |
+| D-30 | M4 (O-18): the 6 SMMS project skills were refreshed against `claude/feature-program-1` (version 1.1.0) and stay `candidate` / review pending until the owner reviews them. | 2026-10-31 | Owner approval |
+| D-31 | M4 (O-19): pilot target is `claude-code` only; OpenCode stays deferred (NOT TESTED). | 2026-10-31 | Owner approval |
 
 ## Open
 

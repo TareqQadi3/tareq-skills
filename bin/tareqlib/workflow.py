@@ -288,7 +288,10 @@ def add_skill(repo_root: Path, src: Path, *, skill_id: str, category: str, scope
     created_category = not dest.parent.exists()
     try:
         shutil.copytree(src, dest, symlinks=True)
-        source_txt = (f"origin: internal / authored in tareq-skills\nfetched: {today}\n" if authored else
+        if authored and url and commit and not library.COMMIT_RE.match(commit):
+            raise SyncError("--commit for an authored skill must be a full 40-char commit")
+        derived = f"derived-from: {url} @ {commit}\n" if authored and url and commit else ""
+        source_txt = (f"origin: internal / authored by the owner\n{derived}fetched: {today}\n" if authored else
                       f"origin: {url}\ncommit: {commit}\nlicense: {license_id or 'NOASSERTION'}\n"
                       f"fetched: {today}\n")
         (dest / "SOURCE.txt").write_text(source_txt + "note: copied verbatim; scripts were not executed\n")
@@ -300,7 +303,8 @@ def add_skill(repo_root: Path, src: Path, *, skill_id: str, category: str, scope
             entry["project"] = project_name
         entry.update({
             "version": version,
-            "source": ({"type": "local", "license": license_id, "fetched_at": today, "content_hash": content}
+            "source": ({"type": "local", "license": license_id, "fetched_at": today, "content_hash": content,
+                        **({"url": url, "commit": commit} if url and commit else {})}
                        if authored else
                        {"type": "upstream", "url": url, "commit": commit, "license": license_id,
                         "fetched_at": today, "content_hash": content}),

@@ -1,0 +1,11 @@
+schema_version: 1
+id: smms-core
+description: SMMS project skills (project scope; enabled explicitly by the SMMS config,
+  never auto-proposed).
+skills:
+- smms-tenant-isolation
+- smms-security-review
+- smms-database-safety
+- smms-maintenance-workflows
+- smms-rtl-ui-review
+- smms-e2e-qa
